@@ -57,7 +57,7 @@ class RMSNorm(BaseNetwork):
         super().__init__(name)
     
     def _norm(self, x:Tensor):
-        rms = torch.sqrt(torch.mean(torch.pow(x, 2)) + self.eps)
+        rms = torch.sqrt(torch.mean(torch.pow(x, 2), dim=-1) + self.eps)
         return x / rms
     
     def forward(self, x:Tensor):
@@ -121,13 +121,61 @@ class Qwen2EncoderLayer(BaseNetwork):
                 这些底层 CUDA 核函数（Kernel）在设计时，都假设了一个前提：属于同一个 KV 头的 Q Heads 是连续存放的。
                 FlashAttention 内部会把 $Q$ 当作一个块读进来。如果 $Q_0$ 和 $Q_1$ 共享同一个 $K$，Kernel 只需要加载一次 $K$，然后让 $Q_0, Q_1$ 依次计算。
         ''' 
+    
+    def get_rope_emb(self, input:Tensor):
+        
+        batchsize, seq_len, d_model = input.shape[0], input.shape[1], input.shape[2]
+        
+        device = input.device
+
+        # [dmodel // 2]   
+        ang:Tensor = 1.0 / pow(10000, torch.arange(0, d_model, 2, device=device, dtype=torch.float32) / d_model )
+        
+        # [dmodel]
+        ang = ang.repeat_interleave(2, dim=-1).reshape([1, d_model])
+
+
+        seq = torch.arange(0, seq_len, device=device, dtype=torch.float32).reshape([seq_len, 1])
+
+        # [seq, 1] [1, d_model]
+        # [seq, dmodel]
+        rop = torch.matmul(seq, ang).reshape([1, seq_len, d_model]).expand(batchsize, -1, -1)
+
+        return rop.cos(), rop.sin()
+
+
+    def apply_rope(self, query:Tensor, key:Tensor, cos_rop:Tensor, sin_rop:Tensor):
+        '''
+        query [B, seq, dim]
+        cos_rop: [B, seq, dim]
+        sin_rop: [B, seq, dim]
+        '''
+        # 对于query key进行两两反转
+        batchsize, seq_len, d_model = query.shape
+        def trans(x:Tensor):
+            x = x.reshape(batchsize, seq_len, d_model // 2, 2)
+            # [B, seq, d//2, 1]
+            x1 = x[:, :, :, 0]
+            x2 = -x[:, :, :, 1]
+            # [B, seq, d//2, 2]
+            # flatten交错填充
+            return torch.stack( (x2, x1), dim=-1).flatten(-2).reshape([batchsize, seq_len,-1])
+
+        query_trans = trans(query)
+
+        key_trans = trans(key)
+
+        return cos_rop * query + sin_rop * query_trans, cos_rop * key + sin_rop * key_trans
+
 
     def gen_mask(self, seq_mask:Tensor) -> Tensor:
         # [B, seq, 1] -> [B, 8, seq, seq]
         return torch.matmul(seq_mask, seq_mask.transpose(1, 2)).unsqueeze(1).expand(-1, self.num_query_heads, -1, -1)
 
 
-    def Qwen2Attn(self, encoder_input:Tensor, seq_mask=None) -> Tensor:
+    # TODO 还差一个 casual mask
+
+    def Qwen2Attn(self, cosin:Tensor, sin:Tensor, encoder_input:Tensor, seq_mask=None) -> Tensor:
         """
         encoder_input: [Batch, Seq, Dim]
         seq_mask: [Batch, Seq, 1] (Eecoder Mask) 理论上可以不用mask, 因为默认全部self-attn,但是可以更灵活控制需要看到哪些(万一有需要)
@@ -142,6 +190,8 @@ class Qwen2EncoderLayer(BaseNetwork):
         key:Tensor = self.k_proj(encoder_input)
         # [B, seq, 2*dim]
         value:Tensor = self.v_proj(encoder_input)
+
+        query, key = self.apply_rope(query, key, cosin, sin)
 
         # [B, seq, 8, dim] -> [B, 8, seq, dim]
         query:Tensor = query.reshape([BatchSize, seq, self.num_query_heads, self.dim]).transpose(1, 2)
@@ -167,7 +217,7 @@ class Qwen2EncoderLayer(BaseNetwork):
         self_attn_seq_mask = self.gen_mask(seq_mask)
 
         # masked_fill_ 传入一个bool Tensor
-        attn_scores = attn_scores.masked_fill_(self_attn_seq_mask == torch.tensor(0.0), -torch.inf)
+        attn_scores = attn_scores.masked_fill_(self_attn_seq_mask == 0, -torch.inf)
 
         # [B, 8, seq, seq]
         attn_scores = torch.softmax(attn_scores, dim=-1)
@@ -205,9 +255,9 @@ class Qwen2EncoderLayer(BaseNetwork):
         encoder_input_normed = self.input_rms_norm(encoder_input)
         
         # ROPE
-
+        cos_rop, sin_rop = self.get_rope_emb(encoder_input)
         # ATTN
-        attn_output = encoder_input + self.Qwen2Attn(encoder_input_normed, seq_mask)
+        attn_output = encoder_input + self.Qwen2Attn(cos_rop, sin_rop, encoder_input_normed, seq_mask)
 
         ffn_input = attn_output
         ffn_input_norm = self.ffn_input_rms_norm(ffn_input)
@@ -215,6 +265,9 @@ class Qwen2EncoderLayer(BaseNetwork):
         ffn_output = ffn_input + self.Qwen2FFN(ffn_input_norm)
 
         return ffn_output
+
+
+
 
 
 class Expert(BaseNetwork):
@@ -353,14 +406,15 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         # [B, seq_d, dim]
         decoder_input_normed = self.input_rms_norm(decoder_input)
-        # [B, seq_d, dim]
-        decoder_casual_attn_output = decoder_input + self.qwen2CasualAttn(decoder_input_normed, seq_mask)
-        
+
         cos_rop, sin_rop = self.get_rope_emb(decoder_input) 
+
+        # [B, seq_d, dim]
+        decoder_casual_attn_output = decoder_input + self.qwen2CasualAttn(cos_rop, sin_rop, decoder_input_normed, seq_mask)
 
         decoder_cross_attn_input_normed = self.cross_attn_rms_norm(decoder_casual_attn_output)
 
-        decoder_cross_attn_output = decoder_casual_attn_output + self.qwen2CrossAttn(cos_rop, sin_rop, decoder_cross_attn_input_normed, encoder_fusion, seq_mask, kv_mask)
+        decoder_cross_attn_output = decoder_casual_attn_output + self.qwen2CrossAttn(decoder_cross_attn_input_normed, encoder_fusion, seq_mask, kv_mask)
         
         decoder_moe_input_normed = self.ffn_input_rms_norm(decoder_cross_attn_output)
 
@@ -439,7 +493,7 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         mask = mask + padding_mask
         return torch.reshape(mask, [1, 1, seq, seq]).expand(BatchSize, self.num_query_heads, -1, -1)
 
-    def qwen2CasualAttn(self, decoder_input:Tensor, seq_mask):
+    def qwen2CasualAttn(self, cos_rop:Tensor, sin_rop:Tensor, decoder_input:Tensor, seq_mask):
         BatchSize, seq = decoder_input.shape[0], decoder_input.shape[1]
 
         # [B, seq, 8*dim]
@@ -448,6 +502,8 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         key:Tensor = self.k_proj(decoder_input)
         # [B, seq, 2*dim]
         value:Tensor = self.v_proj(decoder_input)
+
+        query, key = self.apply_rope(query, key, cos_rop, sin_rop)
 
         # [B, seq, 8, dim] -> [B, 8, seq, dim]
         query:Tensor = query.reshape([BatchSize, seq, self.num_query_heads, self.dim]).transpose(1, 2)
@@ -491,11 +547,11 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         Batchsize = seq_mask.shape[0]
         # [B, seq_d, seq_e] -> [B, 8, seq_d, seq_e]
-        torch.matmul(seq_mask.unsqueeze(-1), kv_mask.unsqueeze(-1)).unsqueeze(1).expand(Batchsize, self.num_query_heads, -1, -1)
+        return torch.matmul(seq_mask.unsqueeze(-1), kv_mask.unsqueeze(-1)).unsqueeze(1).expand(Batchsize, self.num_query_heads, -1, -1)
 
 
 
-    def qwen2CrossAttn(self, cos_rop:Tensor, sin_rop:Tensor, decoder_input:Tensor, encoder_fusion:Tensor, seq_mask:Tensor, kv_encoder_mask:Tensor):
+    def qwen2CrossAttn(self, decoder_input:Tensor, encoder_fusion:Tensor, seq_mask:Tensor, kv_encoder_mask:Tensor):
         """
         
         :param decoder_input:  [B, seq_d, hidden_dim]
@@ -507,13 +563,13 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         BatchSize, seq_decoder, seq_encoder = decoder_input.shape[0], decoder_input.shape[1], encoder_fusion.shape[1]
 
         # [B, seq_d, 8*dim]
-        query_c:Tensor = self.q_proj_cross(decoder_input)
+        query:Tensor = self.q_proj_cross(decoder_input)
         # [B, seq_e, 2*dim]
-        key_c:Tensor = self.k_proj_cross(decoder_input)
+        key:Tensor = self.k_proj_cross(encoder_fusion)
         # [B, seq_e, 2*dim]
-        value:Tensor = self.v_proj_cross(decoder_input)
+        value:Tensor = self.v_proj_cross(encoder_fusion)
 
-        query , key = self.apply_rope(query_c, key_c, cos_rop, sin_rop)
+       
 
         # [B, seq_d, 8, dim] -> [B, 8, seq_d, dim]
         query:Tensor = query.reshape([BatchSize, seq_decoder, self.num_query_heads, self.dim]).transpose(1, 2)
@@ -613,6 +669,79 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         return moe_total_output.reshape([-1, seq, dim])
 
     def qwen2MOE_v2(self, moe_input:Tensor):
+        # 展平为一维度  
+
+        B, seq, dim = moe_input.shape
+
+        moe_total_output = torch.zeros([B*seq, dim])
+
+        for i in range(self.shared_expert_nums):
+            # [B*seq, D]
+            moe_total_output += self.shared_experts[i](moe_input).reshape([B*seq, -1])
+
+        routed_weight_reweithed, routed_weight_soft_topk_indice = self.Router(moe_input)
+
+        # routed_weight_soft_topk_indice : [ 0, 2, 0, 3, 1, 2, 0, 2]
+        # routed_weight_reweithed        : [ 0.9, 0.1, 0.4, 0.6, 0.8, 0.2, 0.5, 0.5]
+        
+        routed_weight_reweithed:Tensor = routed_weight_reweithed.view(-1)
+        routed_weight_soft_topk_indice:Tensor = routed_weight_soft_topk_indice.view(-1)
+
+        moe_input = moe_input.reshape([B*seq, -1])
+
+
+        # [0, 0, 0, 1, 2, 2, 2, 3] sorted_expert_indice
+        # [0, 2, 6, 4, 1, 5, 7, 3] init_token_indice
+        sorted_expert_indice, init_token_indice = routed_weight_soft_topk_indice.sort()
+
+        # [0, 0, 1, 1, 2, 2, 3, 3]
+        candi_token_index = torch.arange(0, seq*B).repeat_interleave(self.topk)
+        
+        # [0, 1, 3, 2, 0, 2, 3, 1] real_expert_index 为当前排完序后token
+        real_expert_index = candi_token_index[init_token_indice]
+
+        # [0.9, 0.4, 0.5, ...]
+        real_expert_weight = routed_weight_reweithed[init_token_indice]
+
+        # [0, 0, 0, 1, 2, 2, 2, 3] 为专家 0*3 & 1 & 2*3 &3
+        # [0, 1, 3, 2, 0, 2, 3, 1] 
+        # token 013要算Expert0
+        # token 2  要算Expert1
+        # token 023要算Expert2
+        # token 1  要算Expert3
+        # 这里的数字都是下标 (token下标和expert下标)
+        # 这里本质是token和expert的匹配问题
+
+        # 之后将输入x拿过来 [4, dim] -> [8, dim]  重复K次
+        # moeinput [4, dim]
+        # [E0, E1, E3, E2, E0, E2, E3, E1]
+        sorted_moe_input = moe_input[real_expert_index]
+
+        # [3, 1, 3, 1]
+        offset = torch.bincount(sorted_expert_indice, minlength=self.routed_expert_nums)
+
+        start_index = 0
+        for i, count in enumerate(offset.tolist()):
+            if count == 0:
+                continue
+            end_index = start_index + count
+
+            # [end-start, dim]
+            sorted_moe_output = self.routed_experts[i](sorted_moe_input[start_index:end_index, :])
+            
+            sorted_moe_output = sorted_moe_output * real_expert_weight[start_index:end_index].unsqueeze(-1)
+            # 将其分配到
+
+            moe_total_output.index_add_(0, real_expert_index[start_index:end_index], sorted_moe_output)
+
+            start_index = end_index
+        
+        return moe_total_output
+         
+
+
+    def qwen2MOE_v3(self, moe_input:Tensor):
+        # 用大矩阵
         # 展平为一维度  
 
         B, seq, dim = moe_input.shape
