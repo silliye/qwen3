@@ -65,7 +65,7 @@ class RMSNorm(BaseNetwork):
 
 class Qwen2EncoderLayer(BaseNetwork):
     def __init__(self, hidden_dim, num_attention_heads, num_key_value_heads, 
-                 intermediate_size, token_size, rope_theta, name="qwen_cross_decoder", use_rope_cache=True):
+                 intermediate_size, token_size, rope_theta, name="qwen_cross_decoder", rope_max_len=4096):
         super().__init__(name)
 
         # RMSNorm Config
@@ -73,10 +73,11 @@ class Qwen2EncoderLayer(BaseNetwork):
         self.ffn_input_rms_norm = RMSNorm(hidden_dim, 1e-8, name='ffn_input_rms_norm')
 
         # ROPE config'
-        self.use_rope_cache = use_rope_cache
-        self.cos_sin_enabled = False
+        self.rope_max_len = rope_max_len
+        
+        self.register_buffer("cos_rop_max", None, persistent=False)
+        self.register_buffer("sin_rop_max", None, persistent=False)
 
-        self.cos_rop, self.sin_rop = None
 
         # Attn Config
         self.hidden_dim = hidden_dim
@@ -93,6 +94,7 @@ class Qwen2EncoderLayer(BaseNetwork):
         self.v_proj = nn.Linear(hidden_dim, num_key_value_heads * self.dim)
         self.o_proj = nn.Linear(hidden_dim, num_attention_heads * self.dim)
 
+        self._init_rope_rop_emb(self.rope_max_len, self.dim)
 
         # FFN config
         # SwishGLU
@@ -100,6 +102,7 @@ class Qwen2EncoderLayer(BaseNetwork):
         self.gate_proj = nn.Linear(hidden_dim, intermediate_size)
         self.up_proj = nn.Linear(intermediate_size, hidden_dim)
         self.down_proj = nn.Linear(hidden_dim, intermediate_size)
+
 
 
         '''GQA:
@@ -126,60 +129,59 @@ class Qwen2EncoderLayer(BaseNetwork):
                 FlashAttention 内部会把 $Q$ 当作一个块读进来。如果 $Q_0$ 和 $Q_1$ 共享同一个 $K$，Kernel 只需要加载一次 $K$，然后让 $Q_0, Q_1$ 依次计算。
         ''' 
     
-    # def _init_rope_():
+    def _init_rope_rop_emb(self, seq_len, d_model):
+
+        angle = 1 / torch.pow(10000.0, torch.arange(0, d_model, 2) / d_model)
         
+        # [max_seq]
+        max_seq = torch.arange(0, seq_len).unsqueeze(-1)
+
+        # [max_seq, dim//2] -> [max_seq, dim] -> [1, 1, max_seq, dim]
+        angle_with_seq = torch.matmul(max_seq, angle.unsqueeze(0)).repeat_interleave(2, dim=-1).unsqueeze(0).squeeze(0)
+
+        
+        self.cos_rop_max = angle_with_seq.cos()
+        self.sin_rop_max = angle_with_seq.sin()
 
     def get_rope_emb(self, input:Tensor):
+        # input [B, seq, dim]
+        batch_size, real_encoder_seq, _ = input.shape
 
-        if self.use_rope_cache and self.cos_sin_enabled:
-            return self.cos_rop, self.sin_rop
-        else:
+        if real_encoder_seq > self.rope_max_len:
+            self.rope_max_len = real_encoder_seq
+            self._init_rope_rop_emb(self.rope_max_len, self.dim)
 
-            batchsize, seq_len, d_model = input.shape[0], input.shape[1], input.shape[2]
-            
-            device = input.device
+        # [1, 1, max_len, dim]
+        # self.cos_rop_max = angle_with_seq.cos()
 
-            # [dmodel // 2]   
-            ang:Tensor = 1.0 / pow(10000, torch.arange(0, d_model, 2, device=device, dtype=torch.float32) / d_model )
-            
-            # [dmodel]
-            ang = ang.repeat_interleave(2, dim=-1).reshape([1, d_model])
+        return self.cos_rop_max[:, :, 0:real_encoder_seq, :], self.sin_rop_max[:, :, 0:real_encoder_seq, :]
 
-
-            seq = torch.arange(0, seq_len, device=device, dtype=torch.float32).reshape([seq_len, 1])
-
-            # [seq, 1] [1, d_model]
-            # [seq, dmodel]
-            rop = torch.matmul(seq, ang).reshape([1, seq_len, d_model]).expand(batchsize, -1, -1)
-
-            self.sin_rop = rop.sin()
-            self.cos_rop = rop.cos()
-            self.cos_sin_enabled = True
-            return rop.cos(), rop.sin()
-        
 
 
     def apply_rope(self, query:Tensor, key:Tensor, cos_rop:Tensor, sin_rop:Tensor):
         '''
         query [B, 8, seq, dim]
-        cos_rop: [B, 2, seq, dim]
-        sin_rop: [B, 2, seq, dim]
+        key [B, 2, seq, dim]
+        cos_rop: [1, 1, seq, dim]
+        sin_rop: [1, 1, seq, dim]
         '''
         # 对于query key进行两两反转
-        batchsize, seq_len, d_model = query.shape
-        def trans(x:Tensor):
-            x = x.reshape(batchsize, seq_len, d_model // 2, 2)
-            # [B, seq, d//2, 1]
-            x1 = x[:, :, :, 0]
-            x2 = -x[:, :, :, 1]
+        batchsize, query_head_num, seq_len, d_model = query.shape
+        batchsize, key_head_num, seq_len, d_model = key.shape
+
+        def trans(x:Tensor, head_nums):
+            x = x.reshape(batchsize, head_nums, seq_len, d_model // 2, 2)
+            # [B, head seq, d//2, 1]
+            x1 = x[:, :, :, :, 0]
+            x2 = -x[:, :, :, :, 1]
             # [B, seq, d//2, 2]
             # flatten交错填充
-            return torch.stack( (x2, x1), dim=-1).flatten(-2).reshape([batchsize, seq_len,-1])
+            return torch.stack( (x2, x1), dim=-1).reshape([batchsize, head_nums, seq_len,-1])
 
-        query_trans = trans(query)
+        query_trans = trans(query, query_head_num)
+        key_trans = trans(key, key_head_num)
 
-        key_trans = trans(key)
-
+        # 广播乘法
         return cos_rop * query + sin_rop * query_trans, cos_rop * key + sin_rop * key_trans
 
 
@@ -289,7 +291,7 @@ class Qwen2EncoderLayer(BaseNetwork):
 
 class Qwen2DecoderCrossLayer(BaseNetwork):
     def __init__(self, hidden_dim, num_attention_heads, num_key_value_heads, 
-                 intermediate_size, token_size, rope_theta, name="qwen_cross_decoder"):
+                 intermediate_size, token_size, rope_theta, name="qwen_cross_decoder", rope_max_len=64):
         super().__init__(name)
         self.hidden_size = hidden_dim
         self.num_attention_heads = num_attention_heads
@@ -301,6 +303,9 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         self.ffn_input_rms_norm = RMSNorm(hidden_dim, 1e-8, name='ffn_input_rms_norm')
 
         # ROPE config
+        self.rope_max_len = rope_max_len
+        self.cos_rop_max, self.sin_rop_max = None
+        
 
         # Casual Attn Config
         self.hidden_dim = hidden_dim
@@ -365,47 +370,38 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         return decoder_ffn_output
 
+    
+    def _init_rope_rop_emb(self, max_seq_len, d_model):
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        angle = 1 / torch.pow(10000.0, torch.arange(0, d_model, 2) / d_model)
+        
+        # [max_seq]
+        max_seq = torch.arange(0, max_seq_len).unsqueeze(-1)
+
+        # [max_seq, dim//2] -> [max_seq, dim] -> [1, 1, max_seq, dim]
+        angle_with_seq = torch.matmul(max_seq, angle.unsqueeze(0)).repeat_interleave(2, dim=-1).unsqueeze(0).squeeze(0)
+
+        self.cos_rop_max = angle_with_seq.cos()
+        self.sin_rop_max = angle_with_seq.sin()
+
     def get_rope_emb(self, input:Tensor):
-        '''
+        # input [B, seq, dim]
+        batch_size, real_decoder_seq, _ = input.shape
 
-        ROPE 中的sin cos 只和seq有关, 所以完全可以缓存到GPU中, 当训练的时候, 读取缓存中的即可, 当长度超过了缓存的长度, 再更新一下即可
-        这里我们先写一个没有缓存的版本, 把逻辑打通
+        # [1, 1, max_len, dim]
+        # self.cos_rop_max = angle_with_seq.cos()
 
-           '''
-        '''
-        input : [B, seq, dim] 
-        sin [B, seq, dim]
-        cos [B, seq, dim]
-        '''
-       
+        return self.cos_rop_max[:, :, 0:real_decoder_seq, :], self.sin_rop_max[:, :, 0:real_decoder_seq, :]
 
-
-        batchsize, seq_len, d_model = input.shape[0], input.shape[1], input.shape[2]
-        
-        device = input.device
-
-        # [dmodel // 2]   
-        ang:Tensor = 1.0 / pow(10000, torch.arange(0, d_model, 2, device=device, dtype=torch.float32) / d_model )
-        
-        # [1, dmodel]
-        ang = ang.repeat_interleave(2, dim=-1).reshape([1, d_model])
-
-
-        seq = torch.arange(0, seq_len, device=device, dtype=torch.float32).reshape([seq_len, 1])
-
-        # [seq, 1] [1, d_model]
-        # [seq, dmodel]
-        rop = torch.matmul(seq, ang).reshape([1, seq_len, d_model]).expand(batchsize, -1, -1)
-
-        return rop.cos(), rop.sin()
 
 
     def apply_rope(self, query:Tensor, key:Tensor, cos_rop:Tensor, sin_rop:Tensor):
         '''
         query [B, 8, seq, dim]
         key [B, 2, seq, dim]
-        cos_rop: [B, seq, dim]
-        sin_rop: [B, seq, dim]
+        cos_rop: [1, 1, seq, dim]
+        sin_rop: [1, 1, seq, dim]
         '''
         # 对于query key进行两两反转
         batchsize, query_head_nums, seq_len, d_model = query.shape
@@ -419,20 +415,19 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
             # [B, head, seq, d//2, 2] -> [B, head, seq, d]
             # flatten交错填充
-            return torch.stack( (x2, x1), dim=-1).reshape([batchsize, head_nums, seq_len,-1])
+            return torch.stack( (x2, x1), dim=-1).reshape([batchsize, head_nums, seq_len, -1])
 
         query_trans = trans(query, query_head_nums)
 
         key_trans = trans(key, key_head_nums)
 
-        cos_rop = cos_rop.unsqueeze(1)
-        sin_rop = sin_rop.unsqueeze(1)
+
 
         return cos_rop * query + sin_rop * query_trans, cos_rop * key + sin_rop * key_trans
 
 
-    def gen_causal_mask(self, seq_mask:Tensor):
-        # seq_mask [B, seq_decoder]  [1 1 1 0 0 ]
+    def gen_casual_mask(self, seq_mask:Tensor):
+        # seq_mask [B, seq_decoder]  [1 1 1 0 0 ], [1, 1, 1, 1, 0]
 
         BatchSize, seq = seq_mask.shape
 
@@ -441,11 +436,13 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         # TODO: tril用法
 
         mask = torch.tril(torch.ones(seq, seq, device=seq_mask.device))  # 下面是用的mask_fill_(bool_tensor)
-        padding_mask = torch.matmul(seq_mask.unsqueeze(-1), seq_mask.unsqueeze(-1).T)
-        mask = mask + padding_mask
 
-        # MAKE 下三角矩阵 [B, 8, seq, seq]  8 = nums_of_query_heads
-        return torch.reshape(mask, [1, 1, seq, seq]).expand(BatchSize, self.num_query_heads, -1, -1)
+        # [B, seq, seq] 
+        padding_mask = torch.matmul(seq_mask.unsqueeze(-1), seq_mask.unsqueeze(-1).transpose(-1, -2))
+        mask = mask * padding_mask
+
+        # MAKE 下三角矩阵 [B, 1, seq, seq]  8 = nums_of_query_heads
+        return mask.unsqueeze(1)
 
     def qwen2CasualAttn(self, cos_rop:Tensor, sin_rop:Tensor, decoder_input:Tensor, seq_mask):
         BatchSize, seq, dim = decoder_input.shape
@@ -481,7 +478,8 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
         # [B, 8, seq, seq]
         attn_scores = torch.matmul(query, key.transpose(-1, -2)) / math.sqrt(self.dim)
 
-        casual_attn_seq_mask = self.gen_causal_mask(seq_mask)
+        # [B, 1, seq, seq]
+        casual_attn_seq_mask = self.gen_casual_mask(seq_mask)
 
         # masked_fill_ 传入一个bool Tensor
         attn_scores = attn_scores.masked_fill_(casual_attn_seq_mask == 0, -torch.inf)
@@ -503,7 +501,7 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         Batchsize = seq_mask.shape[0]
         # [B, seq_d, seq_e] -> [B, 8, seq_d, seq_e]
-        return torch.matmul(seq_mask.unsqueeze(-1), kv_mask.unsqueeze(-1)).unsqueeze(1).expand(Batchsize, self.num_query_heads, -1, -1)
+        return torch.matmul(seq_mask.unsqueeze(-1), kv_mask.unsqueeze(-1).transpose(-1, -2)).unsqueeze(1).expand(Batchsize, self.num_query_heads, -1, -1)
 
 
 
