@@ -139,7 +139,6 @@ class RQVAEModel(BaseModel):
         # dist: [B, code_size]
         # norm(dim=-1) 计算最后一维的 L2 范数
         dist = torch.norm(inputs_expanded - weights_expanded, p=2, dim=-1)
-        
         # argmin 找最近的下标 [B]
         min_encoding_indices = torch.argmin(dist, dim=1)
         

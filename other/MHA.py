@@ -5,7 +5,7 @@ from torch import Tensor
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, emb_dim, head_nums, drop_rate=0.03):
-        super(MultiHeadAttention).__init__()
+        super().__init__()
         self.head_nums = head_nums
 
         self.dim = emb_dim // head_nums  # 必须整数
@@ -16,11 +16,27 @@ class MultiHeadAttention(nn.Module):
 
         self.dropout = nn.Dropout(drop_rate)
 
-    def gen_mask(self, seq_):
-        # seq_ [B, seq]
-        # return full-attn padding mask
-        return None
+    def gen_casual_mask(self, mask:Tensor):
+        # mask [B, seq] [1, 1, 1, 0]
+        batch, seq = mask.shape
 
+        # [B, 1, 1, seq]
+        pad_mask = mask.unsqueeze(1).unsqueeze(1)
+
+        # [1, 1, seq, seq]
+        casual_mask = torch.tril(torch.ones(seq, seq, device=mask.device)).unsqueeze(0).unsqueeze(0)
+
+        
+        return (pad_mask * casual_mask)
+    
+    def gen_full_mask(self, mask:Tensor):
+        # mask [B, seq] [1, 1, 1, 0]
+
+        # [B, 1, 1, seq]
+        pad_mask = mask.unsqueeze(1).unsqueeze(1)
+
+        # [B, 1, 1, seq]
+        return pad_mask
     
     def forward(self, X:Tensor, mask):
         # X [batchsize, seq_len, emb_dim]
@@ -37,9 +53,14 @@ class MultiHeadAttention(nn.Module):
         
         attention_scores = torch.matmul(Q, K.transpose(-1, -2)) / math.sqrt(self.dim)
 
-        if mask is not None: # [batchsize, 1, seq_len, seq_len]   # 如果是因果注意力机制，应该是个下三角矩阵
+        
+        # casual_pad_mask = self.gen_casual_mask(mask)
+        padding_mask = self.gen_full_mask(mask)
+        
+
+        if padding_mask is not None: # [batchsize, 1, seq_len, seq_len]   # 如果是因果注意力机制，应该是个下三角矩阵
             # 加下掩码 形状一样，直接广播乘法
-            attention_scores = attention_scores.masked_fill(mask==0.0, -math.inf)
+            attention_scores = attention_scores.masked_fill_(padding_mask==0.0, -1e9)
 
 
         attention_scores = torch.softmax(attention_scores, dim=-1)

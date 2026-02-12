@@ -51,10 +51,10 @@ class MLP(BaseNetwork):
 
 class RMSNorm(BaseNetwork):
     def __init__(self, dim, eps, name="RMSNorm"):
+        super().__init__(name)
         self.dim = dim
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(dim))
-        super().__init__(name)
     
     def _norm(self, x:Tensor):
         rms = torch.sqrt(torch.mean(torch.pow(x, 2), dim=-1) + self.eps)
@@ -422,7 +422,7 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         return decoder_moe_output
     
-
+# 关于ROPE的实现，看utils.py
 
 
     def get_rope_emb(self, input:Tensor):
@@ -430,6 +430,8 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         ROPE 中的sin cos 只和seq有关, 所以完全可以缓存到GPU中, 当训练的时候, 读取缓存中的即可, 当长度超过了缓存的长度, 再更新一下即可
         这里我们先写一个没有缓存的版本, 把逻辑打通
+
+        在另一个文件中写了util的架构
 
            '''
         '''
