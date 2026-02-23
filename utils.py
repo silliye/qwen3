@@ -44,6 +44,7 @@ class MLP(BaseNetwork):
         
         self.net = nn.Sequential(*layers)
 
+    
 
     def forward(self, x):
         return self.net(x)

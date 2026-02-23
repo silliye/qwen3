@@ -391,7 +391,15 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         self.shared_experts = nn.ModuleList(Expert(hidden_dim, expert_intermediate_dim, name=f'shared_expert{i}') for i in range(self.shared_expert_nums))
 
+        self.shared_expert_v3_gate = nn.Parameter(self.shared_expert_nums, hidden_dim, expert_intermediate_dim)
+        self.shared_expert_v3_up = nn.Parameter(self.shared_expert_nums, hidden_dim, expert_intermediate_dim)
+        self.shared_expert_v3_down = nn.Parameter(self.shared_expert_nums, expert_intermediate_dim, hidden_dim)
+        self.selu = nn.SELU()
+
         self.routed_experts = nn.ModuleList(Expert(hidden_dim, expert_intermediate_dim) for i in range(self.expert_nums - self.shared_expert_nums))
+        
+        s:str = 'asd'
+        s.lower()
         
         
 
@@ -654,7 +662,7 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
             # token_indice [0, 1, 3] k_indice [0, 0, 0]
             token_indice, token_k_indice = torch.where(hit_mask)
             
-            # [4, D]
+            # [4, D] ->
             # [3, D]
             moe_sparse_input = moe_input[token_indice]
 
@@ -750,9 +758,29 @@ class Qwen2DecoderCrossLayer(BaseNetwork):
 
         moe_total_output = torch.zeros([B*seq, dim])
 
-        for i in range(self.shared_expert_nums):
-            # [B*seq, D]
-            moe_total_output += self.shared_experts[i](moe_input).reshape([B*seq, -1])
+        # for i in range(self.shared_expert_nums):
+        #     # [B*seq, D]
+        #     moe_total_output += self.shared_experts[i](moe_input).reshape([B*seq, -1])
+
+        # [N, D, inter]
+        gate_proj = self.shared_expert_v3_gate.weight
+        up_proj = self.shared_expert_v3_up.weight
+        down_proj = self.shared_expert_v3_down.weight
+
+        moe_input = moe_input.view(-1, dim)
+        gate = moe_input @ gate_proj 
+        up = moe_input @ up_proj
+
+        # [N, B, intermediate]
+        inter_proj = self.selu(gate) * up
+        # [N, B, D]
+        down = inter_proj @ down_proj
+        # [B, D]
+        shared_router_sum = torch.sum(down, dim=0, keepdim=False)
+
+        moe_total_output += shared_router_sum
+
+        # router:
 
         routed_weight_reweithed, routed_weight_soft_topk_indice = self.Router(moe_input)
 

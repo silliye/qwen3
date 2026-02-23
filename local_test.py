@@ -29,5 +29,16 @@ x = Tensor(t)
 # print(Tensor(z))
 
 
-a = Tensor([True, True, True, False])
-print(a.mean())
+# a = Tensor([True, True, True, False])
+# print(a.mean())
+
+
+a = Tensor(torch.ones(3, 4))
+
+b = Tensor(torch.ones(6, 4, 5))
+
+
+c = a @ b
+
+print(c.shape)
+print(c)
