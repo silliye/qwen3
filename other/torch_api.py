@@ -61,6 +61,40 @@ lables = torch.LongTensor([1, 0])
 print(cross_entropy(logits, lables))
 
 
+def infonceloss_wo(x1:Tensor, x2:Tensor, tau=0.07):
+    batchsize, dim = x1.shape
+    # x1 = [B, L]
+    # x2 = [B, L]
+    x1 = F.normalize(x1, p=2, dim=-1)
+    x2 = F.normalize(x2, p=2, dim=-1)
+
+    # [B, B]
+    sim = x1 @ x2.T / tau
+    
+    # [B]
+    labels = torch.arange(batchsize, device=x1.device)
+
+    loss = cross_entropy(sim, labels) 
+
+    return loss 
+
+def infonceloss_wo(x1:Tensor, x2:Tensor, logpj, tau=0.07):
+    batchsize, dim = x1.shape
+    # x1 = [B, L]
+    # x2 = [B, L]
+    x1 = F.normalize(x1, p=2, dim=-1)
+    x2 = F.normalize(x2, p=2, dim=-1)
+
+    # [B, B] - [1, B]
+    sim = x1 @ x2.T / tau - logpj.view(1, batchsize)
+    
+    # [B]
+    labels = torch.arange(batchsize, device=x1.device)
+
+    loss = cross_entropy(sim, labels) 
+
+    return loss 
+
 def infonceloss(x1:Tensor, x2:Tensor, tau=0.07):
     batchsize, dim = x1.shape
     # x1 = [B, L]
