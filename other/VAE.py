@@ -70,7 +70,7 @@ class Encoder(nn.Module):
 
         self.leakey = nn.LeakyReLU(0.2)
 
-        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
 
     def forward(self, x):
         # [B, 3, 256, 256] -> [B, 1]
@@ -91,6 +91,6 @@ class Encoder(nn.Module):
         out = self.leakey(out)
 
         out = self.linear1(out.view(batchsize, -1))
-        out = self.leakey(out)
+        out = self.tanh(out)
 
         return out 

@@ -1,3 +1,7 @@
+# 原先的kmeans逻辑是直接把最新的batch计算的中心替代掉原先的中心
+
+# 那么使用指数移动平均 EMA的方式， 相当于每次更新一点点
+
 
 import torch
 from torch import Tensor
@@ -9,12 +13,13 @@ from torch.utils.data import DataLoader, Dataset
 
 class Kmeans():
     # 批量更新
-    def __init__(self, k: int, emb_dim,  mini_inter=1):
+    def __init__(self, k: int, emb_dim, ema_lr=0.1, mini_inter=1):
         self.k = k
         self.emb_dim = emb_dim
         self.mini_inter = mini_inter
 
         # self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.ema_lr = ema_lr
 
         # init
         self.clusters = None # [k, emb]
@@ -37,17 +42,17 @@ class Kmeans():
 
         # [batch, k]
         dis = torch.cdist(X, self.clusters)
+        print("dis mean:", dis.mean())
         # [bacth,]
         indices = dis.argmin(-1)
 
-        new_clusters = self.clusters.clone()
+        
         for i in range(self.k):
 
             mask = (indices == i)
             if mask.any():
-                new_clusters[i] = X[mask].mean(dim=0, keepdim=False)
-            
-        self.clusters = new_clusters
+                batch_center = X[mask].mean(dim=0, keepdim=False)
+                self.clusters[i] = batch_center * self.ema_lr + self.clusters[i] * (1-self.ema_lr)
         
     @torch.no_grad()
     def predict(self, X: Tensor):
@@ -86,19 +91,16 @@ def train():
     
 
     for batch in embedding_dataloader:
-            batch.to(device)
+            batch = batch.to(device)
 
             indices = model.predict(batch)
-            print(indices)
 
 
-# train()
+train()
 
 x = Tensor([[3, 3, 3], [3, 2, 1]])
 print(x[0])
-mask = Tensor([0]).int
-x[mask] = x[mask] - Tensor([2, 2, 2])
-
+x[0] = Tensor([1, 7, 5])
 print(x)
 a = Tensor([1, 7, 5, 7])
 b = Tensor([2, 5, 6, 1])
