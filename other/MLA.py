@@ -3,6 +3,8 @@ import torch.nn as nn
 import math
 from torch import Tensor
 
+# train code
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, emb_dim, latent_emb_dim, head_nums, drop_rate=0.03):
         super(MultiHeadAttention).__init__()

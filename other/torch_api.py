@@ -176,6 +176,8 @@ def sqrt_2():
 x = sqrt_2()
 # print(x)
 
+
+
 import random 
 import time
 def pi():
@@ -204,3 +206,23 @@ def pi2():
 
 print(pi())
 print(pi2())
+
+class ListNode:
+    def __init__(self, val, nxt=None):
+        self.val = val
+        self.nxt = nxt
+    
+    # def __str__(self):
+    #     head = self
+    #     vals = []
+    #     while head:
+    #         vals.append(str(head.val))
+    #         head = head.nxt
+    #     return '->'.join(vals)
+    
+    def __str__(self):
+        return f'{self.val}->{self.nxt}'
+
+c = ListNode(1, ListNode(2, ListNode(3, ListNode(4))))
+
+print(c)    

@@ -43,9 +43,6 @@ class MLP(BaseNetwork):
             layers.append(act_layer())
         
         self.net = nn.Sequential(*layers)
-
-    
-
     def forward(self, x):
         return self.net(x)
 
@@ -175,7 +172,6 @@ class Qwen2EncoderLayer(BaseNetwork):
             x1 = x[:, :, :, :, 0]
             x2 = -x[:, :, :, :, 1]
             # [B, seq, d//2, 2]
-            # flatten交错填充
             return torch.stack( (x2, x1), dim=-1).reshape([batchsize, head_nums, seq_len,-1])
 
         query_trans = trans(query, query_head_num)

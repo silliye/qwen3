@@ -292,7 +292,7 @@ class Router_with_Balance(nn.Module):
         self.router_bias = nn.Parameter(torch.zeros(expert_nums), requires_grad=False)
         self.router = nn.Linear(hidden_dim, expert_nums, bias=False)
         self.topk = k
-        self.lanmda_bias = lanmda_bias
+        self.lamada_bias = lanmda_bias
 
     def forward(self, x:Tensor):
         # x [B, seq, dim]
@@ -310,19 +310,19 @@ class Router_with_Balance(nn.Module):
 
         if self.training:
             # update the bias
+            with torch.no_grad():
+                selected_experts_indice = select_topk_indices.view(-1)
+                
+                # [3, 1, 3, 1] # 4个专家, 下标为专家序号
+                selected_experts_counts = torch.bincount(selected_experts_indice, minlength=self.expert_nums)
+                
+                # avg : 4个token， k=2； 总共激活的就是8 也就是B*seq*k
+                avg_selected = B*seq*self.topk / self.expert_nums
 
-            selected_experts_indice = select_topk_indices.view(-1)
-            
-            # [3, 1, 3, 1] # 4个专家, 下标为专家序号
-            selected_experts_counts = torch.bincount(selected_experts_indice, minlength=self.expert_nums)
-            
-            # avg : 4个token， k=2； 总共激活的就是8 也就是B*seq*k
-            avg_selected = B*seq*self.topk / self.expert_nums
-
-            # [1, -1, 1, -1]
-            diff = selected_experts_counts - avg_selected
-            
-            self.router_bias.data = self.router_bias - self.lanmda_bias*diff
+                # [1, -1, 1, -1]
+                diff = selected_experts_counts - avg_selected
+                
+                self.router_bias.data = self.router_bias - self.lamada_bias*diff
 
 
         
