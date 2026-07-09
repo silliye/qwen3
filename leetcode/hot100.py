@@ -1066,7 +1066,7 @@ class LRUCache:
 	def put(self, key, value):
 
 		if key in self.hashmapValue:
-			
+			return 
 
 		else:
 			if self.size < self.capacity:
@@ -1114,12 +1114,12 @@ class LRUCache:
 # print(lRUCache.get(3))
 # print(lRUCache.get(4))
 
-lRUCache = LRUCache(1)
-lRUCache.put(2, 1)
-print(lRUCache.get(2))
-lRUCache.put(3, 2)
-print(lRUCache.get(2))
-print(lRUCache.get(3))
+# lRUCache = LRUCache(1)
+# lRUCache.put(2, 1)
+# print(lRUCache.get(2))
+# lRUCache.put(3, 2)
+# print(lRUCache.get(2))
+# print(lRUCache.get(3))
 
 
 
@@ -1138,29 +1138,165 @@ class TreeNode:
 		queue.append(root)
 		lis = []
 		while queue:
+			temp = []
 			for i in range(len(queue)):
-				queue.append()
+				popRoot = queue.popleft()
+				temp.append(str(popRoot.val))
 
+				if popRoot.left:
+					queue.append(popRoot.left)
+				if popRoot.right: 
+					queue.append(popRoot.right)
 
-
+			lis.append(temp)
+		print(lis)
+		return lis
 
 # 94. 二叉树的中序遍历
 
+def midTraceHelper(root, lis):
+	if root:
+		midTraceHelper(root.left, lis)
+		lis.append(root.val)
+		midTraceHelper(root.right, lis)
+
+def midTrace(root):
+	lis = []
+	midTraceHelper(root, lis)
+	return lis
+
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
+print(midTrace(root))
+
+
+
+def midTrace2(root):
+	stack = []
+	stack.append((root, 0))
+	result = []
+	while stack:
+		popRoot = stack.pop(-1)
+		if popRoot[1] == 1:
+			result.append(popRoot[0].val)
+		else:
+			if popRoot[0].right:
+				stack.append((popRoot[0].right, 0))
+			stack.append((popRoot[0], 1))
+			if popRoot[0].left:
+				stack.append((popRoot[0].left, 0))
+	return result
+
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
+print(midTrace2(root))
+
+
+def preTrace(root):
+	stack = []
+	stack.append((root, 0))
+	result = []
+	while stack:
+		popRoot = stack.pop(-1)
+		if popRoot[1] == 1:
+			result.append(popRoot[0].val)
+		else:
+			if popRoot[0].right:
+				stack.append((popRoot[0].right, 0))
+			if popRoot[0].left:
+				stack.append((popRoot[0].left, 0))
+			stack.append((popRoot[0], 1))
+
+	return result
+
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
+print(preTrace(root))
+
+
+
+def postTrace(root):
+	stack = []
+	stack.append((root, 0))
+	result = []
+	while stack:
+		popRoot = stack.pop(-1)
+		if popRoot[1] == 1:
+			result.append(popRoot[0].val)
+		else:
+			stack.append((popRoot[0], 1))
+			if popRoot[0].left:
+				stack.append((popRoot[0].right, 0))
+			if popRoot[0].left:
+				stack.append((popRoot[0].left, 0))
+			
+	return result
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
+print(postTrace(root))
+
+
 
 # 104. 二叉树的最大深度
+def maxDepth(root):
+	if not root:
+		return 0
+	else:
+		return 1 + max(maxDepth(root.left), maxDepth(root.right))
+
 
 
 # 226. 翻转二叉树
+def swapBinaryTree(root):
+	if not root or (not root.left and not root.right):
+		return root
+	rightNode = swapBinaryTree(root.left)
+	leftNode = swapBinaryTree(root.right)
+	root.left = rightNode
+	root.right = ListNode
 
-
-
+	return root
+	
 # 101. 对称二叉树
+
+def isSymmetricHelper(root1, root2):
+	if not root1 and not root2:
+		return True
+	if not root1 or not root2:
+		return False
+	return root1.val == root2.val and isSymmetricHelper(root1.left, root2.right) and isSymmetricHelper(root2.left, root1.right)
+
+
+def isSymmetric(root):
+	if not root:
+		return True
+	return isSymmetricHelper(root.left, root.right)
+
 
 
 # 543. 二叉树的直径
+def depth(root):
+	return 
 
 
 # 102. 二叉树的层序遍历
+import collections
+def levelTrace(root):
+
+	queue = collections.deque()
+	queue.append(root)
+	lis = []
+	while queue:
+		temp = []
+		for _ in range(len(queue)):
+			popRoot = queue.popleft()
+			temp.append(popRoot.val)
+			if popRoot.left:
+				queue.append(popRoot.left)
+			if popRoot.right:
+				queue.append(popRoot.right)
+		lis.append(temp)
+	return lis
+
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
+
+print(levelTrace(root))
 
 
 # 108. 将有序数组转换为二叉搜索树
