@@ -1272,8 +1272,18 @@ def isSymmetric(root):
 
 # 543. 二叉树的直径
 def depth(root):
-	return 
+	result = 0
+	def dfs(root):
+		nonlocal result
+		if not root: return 0
+		leftDepth = dfs(root.left)
+		rightDepth = dfs(root.right)
 
+		result = max(result, leftDepth+rightDepth)
+
+		return max(leftDepth, rightDepth) + 1
+	dfs(root)
+	return result
 
 # 102. 二叉树的层序遍历
 import collections
@@ -1296,17 +1306,1955 @@ def levelTrace(root):
 
 root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5))
 
-print(levelTrace(root))
+# print(levelTrace(root))
+print(depth(root))
 
 
 # 108. 将有序数组转换为二叉搜索树
+def setArrayToBST(lis):
+	def helper(lis, l, r):
+		if l > r: return None
+		if l == r:
+			return TreeNode(lis[l])
+		mid = (l + r) // 2
+		return TreeNode(lis[mid], helper(lis, l, mid-1), helper(lis, mid+1, r))
+	return helper(lis, 0, len(lis)-1)
 
-
+from math import inf
 # 98. 验证二叉搜索树
+def isValidBST(root):
+	def helper(root, maxx, minn):
+		if not root:
+			return True
+		if root.val >= maxx or root.val <= minn:
+			return False
+		return helper(root.left, root.val, minn) and helper(root.right, maxx, root.val)
+	return helper(root, inf, -inf)
+root = TreeNode(2, TreeNode(1), TreeNode(3))
+print(isValidBST(root))
+root = TreeNode(2, TreeNode(2), TreeNode(2))
+print(isValidBST(root))
+root = TreeNode(5, TreeNode(1), TreeNode(4, TreeNode(3), TreeNode(6)))
+print(isValidBST(root))
 
 
 # 230. 二叉搜索树中第 K 小的元素
 
+def kthSmallest(root, k):
+	if not root: return root
+	stack = []
+	stack.append((root, 0))
+	result = []
+	while stack:
+		popRoot, flag = stack.pop(-1)
+		if flag:
+			result.append(popRoot.val)
+		else:
+			if popRoot.right:
+				stack.append((popRoot.right, 0))
+			stack.append((popRoot, 1))
+			if popRoot.left:
+				stack.append((popRoot.left, 0))
+			
+	return result[k-1]
+
+
+def kthSmallest2(root, k):
+	# ** 重点review
+	ans = 0
+	def dfs(root):
+		nonlocal k, ans
+		if not root: return
+
+		dfs(root.left)
+		k = k - 1
+		if k == 0:
+			ans = root.val
+		dfs(root.right)
+
+		return 
+	dfs(root, k)
+	return ans
+
+
+# 199. 二叉树的右视图
+import collections
+def rightViewofTree(root):
+	queue = collections.deque()
+	queue.append(root)
+	result = []
+
+	while queue:
+		for i in range(len(queue)):
+			popRoot = queue.popleft()
+			if i == 0:
+				result.append(popRoot.val)
+			if popRoot.right:
+				queue.append(popRoot.right)
+			if popRoot.left:
+				queue.append(popRoot.left)
+	
+	return result
+
+root = TreeNode(1, TreeNode(2, None, TreeNode(5)), TreeNode(3, None, TreeNode(4)))
+# print(rightViewofTree(root))
+
+
+
+
+# 114. 二叉树展开为链表
+def flatten(root):
+	def helper(root):
+		if not root or (not root.left and not root.right):
+			return root
+		rightFlatten = helper(root.right)
+		root.right = rightFlatten
+
+		leftFlatten = helper(root.left)
+		if leftFlatten:
+			proot = leftFlatten
+			while proot.right:
+				proot = proot.right
+			proot.right = root.right
+			root.right = leftFlatten
+			root.left = None
+		return root
+	helper(root)
+	return 
+
+root = TreeNode(1, TreeNode(2, TreeNode(3), TreeNode(4)), TreeNode(5, None, TreeNode(6)))
+# TreeNode.print(root)
+# flatten(root)
+# TreeNode.print(root)
+
+
+
+
+# # 105. 从前序与中序遍历序列构造二叉树
+def buildTree(preorder, inorder):
+	if not preorder: return None
+
+	rootValue = preorder[0]
+	rootIndex = inorder.index(rootValue)
+	return TreeNode(rootValue, buildTree(preorder[1:1+rootIndex], inorder[0:rootIndex]), buildTree(preorder[1+rootIndex:], inorder[1+rootIndex:]))
+
+
+preorder = [3,9,20,15,7]
+inorder = [9,3,15,20,7]
+
+# root = buildTree(preorder, inorder)
+# TreeNode.print(root)
+
+
+# # 437. 路径总和 III
+import collections
+def pathSumIII(root, targetSum):
+	if not root: return 0
+	result = 0
+	hashmap = collections.defaultdict(int)
+	hashmap[0] = 1
+	def dfs(root, pathSum):
+		nonlocal result
+		if pathSum - targetSum in hashmap:
+			result += hashmap[pathSum - targetSum]
+			
+		hashmap[pathSum] += 1
+		if root.left:
+			dfs(root.left, pathSum+root.left.val)
+		if root.right:
+			dfs(root.right, pathSum+root.right.val)
+
+		hashmap[pathSum] -= 1
+
+	dfs(root, root.val)
+	return result
+
+print('路径总和 III')
+root = TreeNode(10, TreeNode(5, TreeNode(3, TreeNode(3), TreeNode(-2)), TreeNode(2, None, TreeNode(1))), TreeNode(-3, None, TreeNode(11))) 
+TreeNode.print(root)
+print(pathSumIII(root, 8) == 3)
+print(pathSumIII(root, 21) == 1)
+
+# 112. 路径总和
+def pathSumI(root, targetSum):
+		
+	if not root: return False
+
+	if (not root.left and not root.right) and root.val == targetSum:
+		return True
+
+	return pathSumI(root.left, targetSum-root.val) or pathSumI(root.right, targetSum-root.val)	
+
+
+print('路径总和 I')
+root = TreeNode(5, TreeNode(4, TreeNode(11, TreeNode(7), TreeNode(2))), TreeNode(8, TreeNode(13), TreeNode(4, None, TreeNode(1))))
+print(pathSumI(root, 22))
+root = TreeNode(1, TreeNode(2), TreeNode(3))
+print(pathSumI(root, 5))
+
+
+# 113. 路径总和 II
+def pathSumII(root, targetSum):
+	if not root: return []
+	result = []
+	path = [root.val]	
+	def dfs(root, prefix):
+		if not root: return 
+		if (not root.left and not root.right) and prefix == targetSum:
+			result.append(path.copy())
+			return 
+		if root.left:
+			path.append(root.left.val)
+			dfs(root.left, prefix+root.left.val)
+			path.pop(-1)
+		if root.right:
+			path.append(root.right.val)
+			dfs(root.right, prefix+root.right.val)
+			path.pop(-1)
+	dfs(root, root.val)
+	return result
+
+def pathSumII2(root, targetSum):
+	if not root: return []
+	result = []
+	path = []	
+	def dfs(root, prefix):
+		if not root and prefix == targetSum:
+			result.append(path.copy())
+			return 
+		if not root: return 
+		path.append(root.val)
+
+		dfs(root.left, prefix+root.val)
+
+		dfs(root.right, prefix+root.val)
+
+		path.pop(-1)
+		
+	dfs(root, 0)
+	return result
+
+
+print('路径总和 II')
+root = TreeNode(5, TreeNode(4, TreeNode(11, TreeNode(7), TreeNode(2))), TreeNode(8, TreeNode(13), TreeNode(4, TreeNode(5), TreeNode(1))))
+print(pathSumII(root, 22))
+
+# # 236. 二叉树的最近公共祖先
+def nearestCommon(root, node1, node2):
+	if root == node1 or root == node2:
+		return root
+
+	ifLeftExist = nearestCommon(root.left, node1, node2)
+	ifRightExist = nearestCommon(root.right, node1, node2)
+
+	if ifLeftExist and ifRightExist:
+		return root
+
+	return ifLeftExist if ifLeftExist else ifRightExist
+
+
+# def nearestCommon2(root, node1, node2):
+# 	if root == node1 or root == node2:
+# 		return root
+
+# 	ifLeftExist = nearestCommon(root.left, node1, node2)
+# 	ifRightExist = nearestCommon(root.right, node1, node2)
+
+# 	if ifLeftExist and ifRightExist:
+# 		return root
+
+# 	return False if (not ifLeftExist and not ifRightExist) else True
+
+	
+a = TreeNode(5, TreeNode(6), TreeNode(2, TreeNode(7), TreeNode(4)))
+b = TreeNode(1, TreeNode(0), TreeNode(8))
+root = TreeNode(3, a, b)
+
+print(nearestCommon(root, a, b).val)
+
+
+# 124. 二叉树中的最大路径和
+from math import inf
+def maxPathSum(root):
+	result = -inf
+
+	def dfs(root):
+		nonlocal result
+		if not root: return 0
+		if not root.left and not root.right:
+			result = max(result, root.val)
+			return root.val
+		leftPathSum = dfs(root.left)
+
+		rightPathSum = dfs(root.right)
+		result = max(result, leftPathSum+rightPathSum+root.val)
+
+		return max(leftPathSum+root.val, rightPathSum+root.val, 0)
+
+	dfsResult = dfs(root)
+	return max(result, dfsResult)
+	
+
+
+print('二叉树中的最大路径和')
+root = TreeNode(-10, TreeNode(9), TreeNode(20, TreeNode(15), TreeNode(7)))
+# print(maxPathSum(root))
+root = TreeNode(1, TreeNode(2), TreeNode(3))
+# print(maxPathSum(root))
+root = TreeNode(-2, TreeNode(1))
+print(maxPathSum(root))
+
+
+
+# 200. 岛屿数量
+def numsIslands(grid):
+	rows = len(grid)
+	columns = len(grid[0])
+	def dfs(r, c):
+		nonlocal rows, columns
+		if grid[r][c] == '1':
+			grid[r][c] = '0'
+			for i, j in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
+				x = r+i
+				y = c+j
+				if 0 <= x < rows and 0 <= y < columns and grid[x][y] == '1':
+					dfs(x, y)
+	# dfs
+	count = 0
+	for r in range(rows):
+		for c in range(columns):
+			if grid[r][c] == '1':
+				dfs(r, c)
+				count += 1
+	return count
+
+print('200. 岛屿数量')
+grid = [
+  ['1','1','1','1','0'],
+  ['1','1','0','1','0'],
+  ['1','1','0','0','0'],
+  ['0','0','0','0','0']
+]
+print(numsIslands(grid) == 1)
+grid = [
+  ['1','1','0','0','0'],
+  ['1','1','0','0','0'],
+  ['0','0','1','0','0'],
+  ['0','0','0','1','1']
+]
+print(numsIslands(grid) == 3)
+
+
+# 695. 岛屿的最大面积
+def maxAreaOfIslands(grid):
+	rows = len(grid)
+	columns = len(grid[0])
+	def dfs(r, c, count):
+		nonlocal rows, columns
+		if grid[r][c] == 1:
+			grid[r][c] = 0
+			count[0] += 1
+			for i, j in [[1, 0], [-1, 0], [0, 1], [0, -1]]:
+				x = r+i
+				y = c+j
+				if 0 <= x < rows and 0 <= y < columns and grid[x][y] == 1:
+					dfs(x, y, count)
+	# dfs
+	result = 0
+	for r in range(rows):
+		for c in range(columns):
+			if grid[r][c] == 1:
+				count = [0]
+				dfs(r, c, count)
+				result = max(result, count[0])
+
+	return result
+
+grid = [[0,0,1,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,1,1,1,0,0,0],[0,1,1,0,1,0,0,0,0,0,0,0,0],[0,1,0,0,1,1,0,0,1,0,1,0,0],[0,1,0,0,1,1,0,0,1,1,1,0,0],[0,0,0,0,0,0,0,0,0,0,1,0,0],[0,0,0,0,0,0,0,1,1,1,0,0,0],[0,0,0,0,0,0,0,1,1,0,0,0,0]]
+# print(maxAreaOfIslands(grid))
+
+import collections
+def BadOranges(grid):
+	# dfs + bfs
+	queue = collections.deque()
+	rows = len(grid)
+	columns = len(grid[0])
+	orangeNum = 0
+	badOrangeNum = 0
+	if orangeNum == 0: return 0
+	for r in range(rows):
+		for c in range(columns):
+			if grid[r][c] != 0:
+				orangeNum += 1
+			if grid[r][c] == 2:
+				queue.append((r, c))
+				badOrangeNum += 1
+	times = 0
+	while queue:
+		for _ in range(len(queue)):
+			popR, popC = queue.popleft()
+			
+			for i, j in [(0, 1), (0, -1), (-1, 0), (1, 0)]:
+				x = popR + i
+				y = popC + j
+
+				if 0 <= x < rows and 0 <= y < columns and grid[x][y] == 1:
+					grid[x][y] = 2
+					queue.append((x, y))
+					badOrangeNum += 1
+
+		times += 1
+	return times - 1 if badOrangeNum == orangeNum else -1
+
+
+# grid = [[2,1,1],[1,1,0],[0,1,1]]
+# print(BadOranges(grid))
+
+
+# 207. 课程表
+import collections
+def ifFinish(classNums, orders):
+	courses = collections.defaultdict(list)
+	degrees = [0] * classNums
+	listCount = 0
+	for nxt, pre in orders:
+		courses[pre].append(nxt)
+		degrees[nxt] += 1
+
+
+	queue = collections.deque()
+	
+	for i in range(classNums):
+		if degrees[i] == 0:
+			queue.append(i)
+			listCount += 1
+
+
+	while queue:
+		node = queue.popleft()
+		for nxt in courses[node]:
+			degrees[nxt] -= 1
+			if degrees[nxt] == 0:
+				queue.append(nxt)
+				listCount += 1
+
+	return listCount == classNums
+
+print('# 207. 课程表')
+
+print(ifFinish(2, [[1,0]]) == True)
+
+
+
+# classNums = 5
+# orders = [[1, 0], [2, 1], [3, 1], [4, 2], [4, 3]]
+# print(ifFinish(classNums, orders) == True)
+# classNums = 5
+# orders = [[1, 0], [2, 1], [3, 1], [3, 0], [4, 2], [4, 3]]
+# print(ifFinish(classNums, orders) == True)
+# classNums = 5
+# orders = [[1, 0], [2, 1], [3, 1], [3, 0], [4, 2], [4, 3], [1, 4]]
+# print(ifFinish(classNums, orders) == False)
+
+
+# print(ifFinish(2, [[1,0],[0,1]]) == False)
+
+
+# 208. 实现 Trie (前缀树)
+
+class Node:
+	def __init__(self):
+		self.son = [None]*26
+		self.ifEnd = False
+
+class Trie:
+	def __init__(self):
+		self.root = Node()
+
+	def insert(self, word):
+		proot = self.root
+		for i, x in enumerate(word):
+			if not proot.son[ord(x)-ord('a')]:
+				proot.son[ord(x)-ord('a')] = Node()
+			proot = proot.son[ord(x)-ord('a')]
+			if i == len(word)-1:
+				proot.ifEnd = True
+
+	def search(self, word):
+		proot = self.root
+		for i, x in enumerate(word):
+			if proot.son[ord(x)-ord('a')]:
+				proot = proot.son[ord(x)-ord('a')]
+			else:
+				return False
+		return proot.ifEnd
+
+	def startWith(self, word):
+		proot = self.root
+		for i, x in enumerate(word):
+			if proot.son[ord(x)-ord('a')]:
+				proot = proot.son[ord(x)-ord('a')]
+			else:
+				return False
+		return True
+
+print('208. 实现 Trie (前缀树)')
+
+trie = Trie()
+trie.insert("apple")
+print(trie.search("apple") == True)
+print(trie.search('app') == False)
+print(trie.startWith('app') == True)
+trie.insert("app")
+print(trie.search('app') == True)
+
+
+
+# 46. 全排列
+'''
+输入：nums = [1,2,3]
+输出：[[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]
+'''
+def rankToList(nums):
+
+	path = []
+	result = []
+	n = len(nums)
+	flag = [False] * n
+	def dfs(i):
+		if len(path) == n:
+			result.append(path.copy())
+
+		for j in range(n):
+			if not flag[j]:
+				path.append(nums[j])
+				flag[j] = True
+				dfs(j+1)
+				path.pop(-1)
+				flag[j] = False
+	dfs(0)
+	return result
+nums = [1,2,3]
+print(rankToList(nums))
+
+
+# 78. 子集
+def subsets(nums):
+	# 2^n
+	path = []
+	result = []
+	n = len(nums)
+	def dfs(i):
+		if i >= n:
+			result.append(path.copy())
+			return
+		path.append(nums[i])
+		dfs(i+1)
+		path.pop(-1)
+		dfs(i+1)
+
+	dfs(0)
+	return result
+nums = [1,2,3]
+result = subsets(nums)
+result.sort(key=lambda x : len(x))
+# print(result)
+
+# 77. 组合
+def combine(n, k):
+	path = []
+	result = []
+	def dfs(i):
+		if i > n:
+			return
+		if len(path) == k:
+			result.append(path.copy())
+			return
+
+		path.append(i+1)
+		dfs(i+1)
+		path.pop(-1)
+		dfs(i+1)
+	dfs(0)
+	return result
+print('# 77. 组合')
+# print(combine(4, 2))
+
+
+# 17. 电话号码的字母组合
+
+
+
+# 39. 组合总和
+def combinationSum(candidates, target):
+	'''
+	输入：candidates = [2,3,6,7], target = 7
+	输出：[[2,2,3],[7]] 
+	可重复利用 	      
+	'''
+	path = []
+	result = []
+	n = len(candidates)
+	def dfs(i, summ):
+
+		if summ == target:
+			result.append(path.copy())
+			return 
+		if n == i or summ > target:
+			return 
+		path.append(candidates[i])
+		dfs(i, summ+candidates[i])
+		path.pop(-1)
+		dfs(i+1, summ)
+
+	dfs(0, 0)
+	return result
+
+candidates = [2,3,6,7]
+target = 7
+# print(combinationSum(candidates, target))
+
+
+# 22. 括号生成
+def generate(n):
+	'''
+	输入：n = 3
+	输出：["((()))","(()())","(())()","()(())","()()()"] '''
+	path = []
+	result = []
+	def dfs(leftRest, rightRest):
+		if leftRest > rightRest:
+			return 
+		if leftRest == 0 and rightRest == 0:
+			result.append(''.join(path.copy()))
+			return 
+
+		if leftRest > 0:
+			path.append('(')
+			dfs(leftRest-1, rightRest)
+			path.pop(-1)
+
+		if rightRest > leftRest:
+			path.append(')')
+			dfs(leftRest, rightRest-1)
+			path.pop(-1)
+
+	dfs(n, n)
+	return result
+
+print(generate(3))
+
+
+# 79. 单词搜索
+
+def searchWord(board, word):
+	rows = len(board)
+	columns = len(board[0])
+	used = set()
+
+	def dfs(r, c, i):
+		if i == len(word)-1 and board[r][c] == word[-1]:
+			return True
+
+		if board[r][c] == word[i]:
+			used.add((r, c))
+			flagResult = False
+			for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+				x = r + dx
+				y = c + dy
+				if 0 <= x < rows and 0 <= y < columns and (x,y) not in used:
+					flagResult = dfs(x, y, i+1)
+					if flagResult:
+						return True
+
+			used.remove((r, c))
+		else:
+			return False
+
+	
+	flag = False
+	for r in range(rows):
+		for c in range(columns):
+			if dfs(r, c, 0):
+				return True
+
+	return flag
+
+print('# 79. 单词搜索')
+print(searchWord(board = [['A','B','C','E'],['S','F','C','S'],['M','D','E','E']], word = "ABCCED"))
+# print(searchWord(board = [['A','B','C','E'],['S','F','C','S'],['A','D','E','E']], word = "SEE"))
+# print(searchWord(board = [['A','B','C','E'],['S','F','C','S'],['A','D','E','E']], word = "ABCB"))
+print('# 79. 单词搜索')
+
+
+# 35. 搜索插入位置
+def searchIndex(nums, target):
+	'''
+	nums = [1,3,5,6], target = 5
+	'''
+	n = len(nums)
+	left, right = 0, n-1
+
+	while left <= right:
+		mid = (left + right) // 2
+		if nums[mid] == target:
+			return mid
+		elif nums[mid] > target:
+			right = mid - 1
+		else:
+			left = mid + 1
+
+	return left
+
+print(searchIndex([1,3,5,6], 5) == 2)
+print(searchIndex([1,3,5,6], 2) == 1)
+print(searchIndex([1,3,5,6], 7) == 4)
+
+
+
+
+# 74. 搜索二维矩阵
+def searchMatrix(matrix, target):
+	rows = len(matrix)
+	columns = len(matrix[0])
+	left = 0
+	right = rows*columns-1
+	while left <= right:
+		mid = (left+right) // 2
+		print(mid, mid//columns, mid%columns)
+		if matrix[mid//columns][mid%columns] == target:
+			return True
+		elif matrix[mid//columns][mid%columns] > target:
+			right = mid - 1 
+		else:
+			left = mid + 1
+
+	return False
+
+
+print(searchMatrix([[1,3,5,7],[10,11,16,20],[23,30,34,60]], target = 3))
+
+
+# 34. 在排序数组中查找元素的第一个和最后一个位置
+
+def searchLeft(nums, target):
+	n = len(nums)
+	left, right = 0, n-1
+	while left <= right:
+		mid = (left+right) // 2
+		if nums[mid] >= target:
+			right = mid - 1
+		else:
+			left = mid + 1
+
+	return left
+
+def searchRight(nums, target):
+	n = len(nums)
+	left, right = 0, n-1
+	while left <= right:
+		mid = (left+right) // 2
+		if nums[mid] <= target:
+			left = mid + 1
+		else:
+			right = mid - 1
+
+	return right
+
+
+def searchDoubleEnd(nums, target):
+	leftResult = searchLeft(nums, target)
+	rightResult = searchRight(nums, target)
+	if nums[leftResult] == target and nums[rightResult] == target:
+		return leftResult, rightResult
+	else:
+		return [-1, -1]
+
+print(searchDoubleEnd([5,7,7,8,8,10], target = 8))
+
+
+
+# 33. 搜索旋转排序数组
+def searchRotateArray(nums, target):
+	# 对mid分类讨论;
+
+	n = len(nums)
+	left, right = 0, n-1
+
+	while left <= right:
+
+		mid = (left + right) // 2
+		if nums[mid] == target:
+			return mid
+
+		if nums[mid] <= nums[-1]:
+			if nums[mid] < target <= nums[-1]:
+				left = mid + 1
+			else:
+				right = mid - 1
+		if nums[mid] >= nums[0]:
+			if nums[0] <= target < nums[mid]:
+				right = mid - 1
+			else:
+				left = mid + 1
+	return -1
+
+
+# print(searchRotateArray(nums = [4,5,6,7,0,1,2], target = 0))
+# print(searchRotateArray(nums = [4,5,6,7,0,1,2], target = 3))
+# print(searchRotateArray(nums = [1], target = 0))
+
+
+def findMinOfRotateArray(nums):
+	n = len(nums)
+	left, right = 0, n-1
+	while left < right:
+
+		mid = (left + right) // 2
+
+		if nums[mid] > nums[-1]:
+			left = mid + 1
+		else:
+			right = mid 
+
+	return nums[right]
+
+# print(findMinOfRotateArray(nums = [3,4,5,1,2]))
+# print(findMinOfRotateArray(nums = [4,5,6,7,0,1,2]))
+# print(findMinOfRotateArray(nums = [11,13,15,17]))
+
+
+
+# 295. 数据流的中位数
+def MedianFinder():
+	return 
+
+
+
+
+# 20. 有效的括号
+def validBrackets(s):
+	stack = []
+	hashmap = {')':'(', ']':'[', '}':'{'}
+
+	for c in s:
+		if c in hashmap:
+			popItem = stack.pop(-1)
+			if popItem != hashmap[c]:
+				return False
+		else:
+			stack.append(c)
+	return True
+# print(validBrackets("()"))
+# print(validBrackets("()[]{}"))
+# print(validBrackets("(]"))
+# print(validBrackets("([])"))
+# print(validBrackets("([)]"))
+
+
+# 155. 最小栈
+class minStack:
+
+	def __init__(self):
+		self.stack = []
+		self.minstack = [inf]
+		self.size = 0
+
+
+
+	def push(self, value):
+		
+		if value < self.getMin():
+			self.minstack.append(value)
+		else:
+			self.minstack.append(self.getMin())
+
+		self.stack.append(value)
+		self.size += 1
+
+
+	def pop(self):
+		if self.size > 0:
+			popItem = self.stack[self.size-1]
+			self.size -= 1
+			return popItem
+		else:
+			return None
+
+		
+
+
+	def top(self):
+		if self.size > 0:
+			return self.stack[self.size-1]
+		else:
+			return None
+
+
+	def getMin(self):
+		
+		return self.minstack[self.size]
+
+
+# class Stack:
+# 	def __init__(self, capacity):
+# 		self.stack = [0] * capacity
+# 		self.capacity = capacity
+# 		self.size = 0	
+
+# 	def expand(self):
+# 		self.newStack = [0] * (2 * self.capacity)
+# 		for i in range(self.size):
+# 			self.newStack[i] = self.stack[i]
+# 		self.stack = self.newStack
+
+# 	def push(self, val):
+# 		if self.size > self.capacity:
+# 			self.expand()
+# 		self.stack[self.size] = val
+# 			self.size += 1
+
+# 	def pop(self):
+# 		return 
+
+# 	def top(self):
+# 		return
+
+# stack = Stack()
+# stack.push(1)
+# stack.push(2)
+# stack.push(3)
+# print(stack.top())
+# stack.push(4)
+# print(stack.pop())
+# print(stack.pop())
+# print(stack.pop())
+# print(stack.pop())
+
+
+# print(' 155. 最小栈')
+
+# stack = minStack()
+# stack.push(-2)
+# stack.push(0)
+# stack.push(-3)
+# print(stack.getMin())
+# print(stack.pop())
+# print(stack.size)
+# print(stack.top())
+# print(stack.getMin())
+
+
+
+# 394. 字符串解码
+def decodeString(s):
+	curNum = 0
+	curStr = ''
+	stack = []
+	for c in s:
+		if c.isdigit():
+			curNum = curNum*10 + int(c)
+
+		elif c == '[':
+			stack.append((curNum, curStr))
+			curNum = 0
+			curStr = ''
+
+		elif c == ']':
+			preNum, preStr = stack.pop(-1)
+			curStr = preStr + curStr * preNum
+
+		else:
+			curStr += c
+	return curStr
+
+print(decodeString("3[a]2[bc]"))
+print(decodeString("3[a2[c]]"))
+print(decodeString("3[a2[c5[r4[e]]]]"))
+print(decodeString("3[a]2[bc]") == "aaabcbc")
+print(decodeString("3[a2[c]]") == "accaccacc")
+
+
+# 739. 每日温度
+def dailyTemperuature(temperatures):
+	# 递减的栈，一直加小的, 栈顶是一直放元素的那个方向，应该要随着栈顶越来越小； 并且不能重复，重复的需要去除，因为还要考虑 2 2 4，第一个2的next应该是4，而不是第二个2
+	# 如果不去除重复的, 第一个2的答案就是1了，而不是2
+	# 存下标
+	# 
+
+	n = len(temperatures)
+	result = [0] * n
+	stack = []
+	for i in range(n-1, -1, -1):
+		while stack and temperatures[i] >= temperatures[stack[-1]]:
+			stack.pop(-1)
+		if stack:
+			result[i] = stack[-1] - i
+		stack.append(i)
+	return result
+
+# print('739. 每日温度')
+# print(dailyTemperuature([73,74,75,71,69,72,76,73]))
+# print(dailyTemperuature([73,74,75,71,69,72,76,73]) == [1,1,4,2,1,1,0,0])
+
+
+# 数组中的第K个最大元素
+import random
+def quickSortHelper(nums, left, right):
+	# [left, right]
+	if left >= right:
+		return
+
+	pati = random.randint(left, right) # randomInt 闭区间
+	baseline = nums[pati]
+	nums[left], nums[pati] = nums[pati], nums[left]
+
+	l, r = left+1, right
+
+	while l <= r:
+
+		while l <= r and nums[l] <= baseline:
+			l += 1
+		while l <= r and nums[r] >= baseline:
+			r -= 1
+
+		if l <= r:
+			nums[l], nums[r] = nums[r], nums[l]
+			l += 1
+			r -= 1
+
+	nums[left], nums[r] = nums[r], nums[left]
+
+	quickSortHelper(nums, left, r-1)
+	quickSortHelper(nums, r+1, right)
+
+
+def quickSort(nums):
+	quickSortHelper(nums, 0, len(nums)-1)
+
+
+import random
+def quickSortHelper2(nums, left, right):
+	# [left, right]
+	if left >= right:
+		return
+
+	pati = random.randint(left, right) # randomInt 闭区间
+	baseline = nums[pati]
+	nums[left], nums[pati] = nums[pati], nums[left]
+
+	l, r = left+1, right
+
+	while l <= r:
+
+		while l <= r and nums[l] < baseline:
+			l += 1
+		while l <= r and nums[r] > baseline:
+			r -= 1
+
+		if l <= r:
+			nums[l], nums[r] = nums[r], nums[l]
+			l += 1
+			r -= 1
+
+	nums[left], nums[r] = nums[r], nums[left]
+
+	quickSortHelper2(nums, left, r-1)
+	quickSortHelper2(nums, r+1, right)
+
+
+def quickSort2(nums):
+	quickSortHelper2(nums, 0, len(nums)-1)
+
+
+lis = [i for i in range(1000, 0, -1)]
+# print(lis)
+# quickSort2(lis)
+# print(lis)
+
+
+
+lis = [1 for i in range(1000, 0, -1)]
+# print(lis)
+# quickSort2(lis)
+# print(lis)
+
+import random
+
+def quickselect(nums, left, right):
+	# [left. right]
+	if left > right:
+		return -1 
+	pati = random.randint(left, right)
+	baseline = nums[pati]
+	nums[left], nums[pati] = nums[pati], nums[left]
+
+	l, r = left+1, right
+
+	while l <= r:
+		while l <= r and nums[l] > baseline:
+			l += 1
+		while l <= r and nums[r] < baseline:
+			r -= 1
+		if l <= r:
+			nums[l], nums[r] = nums[r], nums[l]
+			l += 1
+			r -= 1
+	nums[left], nums[r] = nums[r], nums[left]
+	return r
+
+def biggestKItem(nums, k):
+	# quickselect 顺便排序
+	k = k - 1 
+	left = 0
+	right = len(nums) - 1
+
+	while left <= right:
+
+		p = quickselect(nums, left, right)
+
+		if p == k:
+			return nums[p]
+		elif p > k:
+			right = p - 1
+		else:
+			left = p + 1
+
+print('biggestKItem : 第K大的数')
+print(biggestKItem([3,2,1,5,6,4], k = 2))
+print(biggestKItem([3,2,3,1,2,4,5,5,6], k = 4))
+
+import collections
+def topKElement(nums, k):
+	counts = collections.defaultdict(int)
+	result = []
+
+	for n in nums:
+		counts[n] += 1
+	reverse = collections.defaultdict(list)
+
+	for item, count in counts.items():
+		reverse[count].append(item)
+	maxCount = max(reverse.keys())
+	print(reverse)
+	print(maxCount)
+
+	index = maxCount
+	while index > 0 and k > 0:
+		if index in reverse.keys() and reverse[index]:
+			result.append(reverse[index][-1])
+			reverse[index].pop(-1)
+			k -= 1
+		else:
+			index -= 1
+	return result
+print(topKElement(nums = [1,2,1,2,1,2,3,1,3,2], k=2))
+
+print(topKElement(nums = [1,1,1,2,2,3], k = 2))
+print(topKElement(nums = [1], k = 1))
+
+
+
+from math import inf
+# 121. 买卖股票的最佳时机
+def maxProfit(prices):
+	curMin = inf
+	maxProfit = -inf
+	n = len(prices)
+	for i in range(n):
+		curMin = min(curMin, prices[i])
+		maxProfit = max(maxProfit, prices[i] - curMin)
+
+	return maxProfit
+
+# print(maxProfit([7,1,5,3,6,4]))
+# print(maxProfit([7,1,5,3,6,4]) == 5)
+# print(maxProfit([7,6,4,3,1]))
+# print(maxProfit([7,6,4,3,1]) == 0)
+
+
+
+
+def maxProfit2(prices):
+	'''
+	给你一个整数数组 prices ，其中 prices[i] 表示某支股票第 i 天的价格。
+
+	在每一天，你可以决定是否购买和/或出售股票。你在任何时候 最多 只能持有 一股 股票。然而，你可以在 同一天 多次买卖该股票，但要确保你持有的股票不超过一股。
+
+	返回 你能获得的 最大 利润 。
+	'''
+	n = len(prices)
+	result = 0
+	for i in range(1, n):
+		if prices[i] > prices[i-1]:
+			result += (prices[i] - prices[i-1])
+
+	return result
+
+
+# print(maxProfit2(prices = [7,1,5,3,6,4]))
+# print(maxProfit2(prices = [7,1,5,3,6,4]) == 7)
+
+# 55. 跳跃游戏
+def canJump(nums):
+	lastIndex = 0
+	for i in range(len(nums)):
+		if i > lastIndex:
+			return False
+		lastIndex = max(lastIndex, i + nums[i])
+
+	return True
+
+print(canJump(nums = [2,3,1,1,4]))
+print(canJump(nums = [3,2,1,0,4]))
+
+print(canJump([2,0,0]))
+
+
+
+# 45. 跳跃游戏 II
+def jump(nums):
+	result = 0
+	curLastIndex = 0
+	maxLastIndex = 0
+	n = len(nums)
+	for i in range(n-1):
+		maxLastIndex = max(maxLastIndex, i+nums[i])
+		if i == curLastIndex:
+			curLastIndex = maxLastIndex
+			result += 1
+
+	return result
+
+
+
+print(jump([2,3,1,1,4]))
+print(jump([2,3,1,1,4]) == 2)
+
+
+print(jump([2,3,0,1,4]))
+print(jump([2,3,0,1,4]) == 2)
+
+
+
+# 763. 划分字母区间
+import collections
+def splitLetter(letter):
+	# 找到这个字母的最后一个index
+	lastIndexs = collections.defaultdict(int)
+	for i, x in enumerate(letter):
+		lastIndexs[x] = i
+	# print(lastIndexs)
+
+	count = 0
+	result = []
+	maxLastIndex = 0
+	for i, x in enumerate(letter):
+		count += 1
+		maxLastIndex = max(maxLastIndex, lastIndexs[x])
+		if i == maxLastIndex:
+			result.append(count)
+			count = 0
+	return result
+
+
+print(splitLetter("ababcbacadefegdehijhklij"))
+print(splitLetter("ababcbacadefegdehijhklij") == [9,7,8])
+
+
+
+# 70. 爬楼梯
+def climb(n):
+	F = [1] * (n+1)
+
+	for i in range(1, n):
+		F[i+1] = F[i] + F[i-1]
+
+	return F[n]
+# print(climb(4))	
+# print(climb(3))
+# print(climb(2))
+
+
+# 118. 杨辉三角
+def triangle(numRows):
+	result = [[1] * (i+1) for i in range(numRows)]
+	for i in range(2, numRows):
+		for j in range(1, i):
+			result[i][j] = result[i-1][j-1] + result[i-1][j]
+	return result
+
+
+print(triangle(5))
+
+# 198. 打家劫舍
+'''
+	示例 1：
+
+	输入：[1,2,3,1]
+	输出：4
+	解释：偷窃 1 号房屋 (金额 = 1) ，然后偷窃 3 号房屋 (金额 = 3)。
+	     偷窃到的最高金额 = 1 + 3 = 4 。
+	示例 2：
+
+	输入：[2,7,9,3,1]
+	输出：12
+	解释：偷窃 1 号房屋 (金额 = 2), 偷窃 3 号房屋 (金额 = 9)，接着偷窃 5 号房屋 (金额 = 1)。
+	     偷窃到的最高金额 = 2 + 9 + 1 = 12 。
+
+'''
+def rob(nums):
+	n = len(nums)
+	
+	f0 = f1 = 0
+	f = 0
+	for i in range(n):
+		f = max(nums[i]+f0, f1)
+		f0 = f1
+		f1 = f
+	return f
+
+
+print(rob([2,7,9,3,1]))
+print(rob([2,7,9,3,1]) == 12)
+
+
+'''
+你是一个专业的小偷，计划偷窃沿街的房屋，每间房内都藏有一定的现金。这个地方所有的房屋都 围成一圈 ，这意味着第一个房屋和最后一个房屋是紧挨着的。同时，相邻的房屋装有相互连通的防盗系统，如果两间相邻的房屋在同一晚上被小偷闯入，系统会自动报警 。
+
+给定一个代表每个房屋存放金额的非负整数数组，计算你 在不触动警报装置的情况下 ，今晚能够偷窃到的最高金额。
+
+ 
+示例 1：
+
+输入：nums = [2,3,2]
+输出：3
+解释：你不能先偷窃 1 号房屋（金额 = 2），然后偷窃 3 号房屋（金额 = 2）, 因为他们是相邻的。
+示例 2：
+
+输入：nums = [1,2,3,1]
+输出：4
+解释：你可以先偷窃 1 号房屋（金额 = 1），然后偷窃 3 号房屋（金额 = 3）。
+     偷窃到的最高金额 = 1 + 3 = 4 。
+     '''
+def rob2(nums):
+	def robb(nums):
+		f0 = f1 = f = 0
+		n = len(nums)
+		for i in range(n):
+			f = max(f0+nums[i], f1)
+			f0 = f1 
+			f1 = f
+		return f
+	return max(nums[0] + robb(nums[2:-1]), robb(nums[1:]))
+
+print(rob2([2,3,2]) == 3)
+print(rob2([1,2,3,1]) == 4)
+
+
+# 322. 零钱兑换
+def coinChange(coins, amount):
+	# 创建好数组:
+	# 注意边界: n+1这样就可以防止i越界
+	# a也需要多创建一个，相当于它的全周期或者可能出现的条件吧，所以遍历的时候也是
+	# 像这里i = 0的就一般都是初始化条件，可以自己直接把值落下来
+	# 注意初始化，初始化一些base condition
+	# 找到递推公式，去进行递推
+	# 这里就是dp[i][a]上面的值 with 左边的值进行比较
+
+	n = len(coins)
+
+	dp = [[inf] * (amount+1) for _ in range(n + 1)]
+	for i in range(n):
+		dp[i][0] = 0
+		for a in range(amount+1):
+
+			if a < coins[i]:
+				dp[i+1][a] = dp[i][a]
+			else:
+				dp[i+1][a] = min(dp[i][a], dp[i+1][a-coins[i]]+1)
+	print(dp)
+	F = dp[n][-1]
+	return F if F < inf else -1
+
+print(coinChange(coins = [1, 2, 5], amount = 11) == 3)
+
+def coinChange2(coins, amount):
+	# 这里就是dp[i][a]上面的值 with 左边的值进行比较
+	# 单数组就是可以覆盖，上面的值变成了自己上次循环本身的值，左边的值进行比较依旧是左边的值
+	# 初始化依旧不变
+	n = len(coins)
+
+	dp = [inf] * (amount+1)
+	dp[0] = 0
+	for i in range(n):
+		for a in range(coins[i], amount+1):
+			dp[a] = min(dp[a], dp[a-coins[i]]+1)
+	print(dp)
+	F = dp[-1]
+	return F if F < inf else -1
+
+print(coinChange2(coins = [1, 2, 5], amount = 11) == 3)
+
+
+# 279. 完全平方数
+
+def numSquares(n):
+	# [1, 4, 9]
+	squares = [(i+1)**2 for i in range(int(sqrt(n)))]
+	counts = len(squares)
+	dp = [[inf] * (n+1) for _ in range(counts+1)]
+	print(squares)
+	for i in range(counts):
+		dp[i][0] = 0
+		for a in range(n+1):
+			if a < squares[i]:
+				dp[i+1][a] = dp[i][a]
+			else:
+				dp[i+1][a] = min(dp[i][a], dp[i+1][a-squares[i]]+1)
+	F = dp[-1][-1]
+	return F if F < inf else -1
+print(numSquares(12))
+print(numSquares(13))
+
+
+
+# 139. 单词拆分
+def splitWord(s, wordDict):
+	maxlen = len(max(wordDict, key = lambda x : len(x))) # max返回的不是len的值, 而是原始值
+	n = len(s)
+	dp = [False] * (n+1)
+	dp[0] = True
+
+	for i in range(n):
+		for j in range(i, max(-1, i-maxlen), -1):
+			if s[j:i+1] in wordDict:
+				if dp[j] == True:
+					dp[i+1] = True
+	return dp[-1]
+
+print('139. 单词拆分')
+print(splitWord(s = "leetcode", wordDict = ["leet", "code"]) == True)
+print(splitWord(s = "applepenapple", wordDict = ["apple", "pen"]) == True)
+print('139. 单词拆分')
+
+
+
+# 300. 最长递增子序列
+def LIS(nums):
+	n = len(nums)
+	F = [1] * n
+	for i in range(n):
+		for j in range(i):
+			if nums[j] < nums[i]:
+				F[i] = max(F[i], F[j]+1)
+	return max(F)
+
+def LIS2(nums):
+	def searchInsert(nums, target):
+		left, right = 0, len(nums)-1
+		while left <= right:
+			mid = (left + right) // 2
+			if nums[mid] == target:
+				return mid
+			elif nums[mid] < target:
+				left = mid + 1
+			else:
+				right = mid - 1
+		return left
+
+
+	n = len(nums)
+	result = [nums[0]]
+
+	for i in range(1, n):
+		insertIndex = searchInsert(result, nums[i])
+		if insertIndex == len(result):
+			result.append(nums[i])
+		else:
+			result[insertIndex] = nums[i]
+	return len(result)
+
+print(LIS([10,9,2,5,3,7,101,18]) == 4)
+print(LIS([0,1,0,3,2,3]) == 4)
+print(LIS([7,7,7,7,7,7,7]) == 1)
+
+print(LIS2([10,9,2,5,3,7,101,18]) == 4)
+print(LIS2([0,1,0,3,2,3]) == 4)
+print(LIS2([7,7,7,7,7,7,7]) == 1)
+
+
+# 152. 乘积最大子数组
+def maxProductOfSubArray(nums):
+	globalMax = nums[0]
+	curMax = nums[0]
+	curMin = nums[0]
+	n = len(nums)
+	for i in range(1, n):
+		tempMin = min(curMin * nums[i], curMax * nums[i], nums[i])
+		curMax = max(curMax * nums[i], curMin * nums[i], nums[i])
+		curMin = tempMin
+		globalMax = max(globalMax, curMin, curMax)
+
+	return globalMax
+
+print('乘积最大子数组')
+print(maxProductOfSubArray(nums = [2,3,-2,4]))
+print(maxProductOfSubArray(nums = [-2,0,-1]))
+
+# 416. 分割等和子集
+
+def splitLetterWithSameSummary(nums):
+	summary = sum(nums)
+	if summary % 2 == 1:
+		return False
+	n = len(nums)
+	target = summary // 2
+	# 0-1背包
+
+	dp = [[False] * (target + 1) for _ in range(n+1)]
+	dp[0][0] = True # dp[0][1-11]这些相当于 有target,但是没有元素,所以肯定找不到和为target的items
+
+	for i in range(n):
+		for t in range(target+1):
+			if t < nums[i]:
+				dp[i+1][t] = dp[i][t] 
+			else:
+				# 看上和左上:
+				dp[i+1][t] = dp[i][t] or dp[i][t-nums[i]]
+	print(dp)
+	return dp[-1][-1]
+print(splitLetterWithSameSummary([1,5,11,5]))
+# print(splitLetterWithSameSummary([1,2,3,5]))
+
+# 
+def longestPam(s):
+	stack = []
+	n = len(s)
+	result = [0] * n
+	for i in range(n):
+		if s[i] == '(':
+			stack.append(i)
+		else:
+			j = stack.pop(-1)
+			result[i] = 1
+			result[j] = 1
+
+	print(result)
+	count = 0
+	maxCount = 0
+	for i in range(n):
+		if result[i] == 1:
+			count += 1
+		else:
+			maxCount = max(maxCount, count)
+			count = 0
+	maxCount = max(maxCount, count)
+	return maxCount
+
+print(longestPam(s = "(()"))
+
+
+def uniquePaths(m, n):
+	'''
+	一个机器人位于一个 m x n 网格的左上角 （起始点在下图中标记为 “Start” ）。
+
+	机器人每次只能向下或者向右移动一步。机器人试图达到网格的右下角（在下图中标记为 “Finish” ）。
+
+	问总共有多少条不同的路径？'''
+
+	# dp = [[0] * (n) for _ in range(m)]
+	# for i in range(m):
+	# 	dp[i][0] = 1
+	# for j in range(n):
+	# 	dp[0][j] = 1
+	# for i in range(1, m):
+	# 	for j in range(1, n):
+	# 		dp[i][j] = dp[i][j-1] + dp[i-1][j]
+	# return dp[m-1][n-1]
+
+	# dp = [[0] * (n+1) for _ in range(m+1)]
+	# dp[1][1] = 1
+	# for i in range(1, m+1):
+	# 	for j in range(1, n+1):
+	# 		if i != 1 or j != 1:
+	# 			dp[i][j] = dp[i-1][j] + dp[i][j-1]
+	# return dp[-1][-1]
+
+	dp = [0] * (n+1) 
+	dp[1] = 1
+	for i in range(1, m+1):
+		for j in range(1, n+1):
+			if i != 1 or j != 1:
+				dp[j] = dp[j] + dp[j-1]
+
+	return dp[-1]
+
+
+print(uniquePaths(m = 3, n = 7))
+print(uniquePaths(m = 3, n = 2))
+
+
+#  64. 最小路径和
+def minPathSum(grid):
+	m = len(grid)
+	n = len(grid[0])
+	# dp = [[inf] * (n+1) for _ in range(m+1)]
+	# dp[1][1] = grid[0][0]
+	# for i in range(m):
+	# 	for j in range(n):
+	# 		if not (i == 0 and j == 0):
+	# 			dp[i+1][j+1] = min(dp[i+1][j], dp[i][j+1]) + grid[i][j]
+	# return dp[-1][-1]
+
+	dp = [inf] * (n+1) 
+	dp[1] = grid[0][0]
+	for i in range(m):
+		for j in range(n):
+			if not (i == 0 and j == 0):
+				# dp[i+1][j+1] = min(dp[i+1][j], dp[i][j+1]) + grid[i][j]
+				dp[j+1] = min(dp[j], dp[j+1]) + grid[i][j]
+
+	return dp[-1]
+
+print(minPathSum(grid = [[1,3,1],[1,5,1],[4,2,1]]))
+print(minPathSum(grid = [[1,2,3],[4,5,6]]))
+
+
+
+
+# 1143. 最长公共子序列 
+def LCS(text1, text2):
+	m = len(text1)
+	n = len(text2)
+	dp = [[0] * (n+1) for _ in range(m+1)]
+
+	for i in range(m):
+		for j in range(n):
+			if text1[i] == text2[j]:
+				# 左上角
+				dp[i+1][j+1] = dp[i][j] + 1
+			else:
+				# max 左 and 上 -> 
+				dp[i+1][j+1] = max(dp[i][j+1], dp[i+1][j])
+	print(dp)
+	return dp[m][n]
+
+	'''
+	[[0, 0, 0, 0], [0, 1, 1, 1], [0, 1, 1, 1], [0, 1, 2, 2], [0, 1, 2, 2], [0, 1, 2, 3]]
+	'''
+
+	# 当我们做一维矩阵的时候：注意我们的推来自三个: 左上(when equal) 左 & 上; 当我们在用左上的时候,它和左会重合; 想象一下: 本来j+1要用到左上的, 那么下标是j,但是j已经在上一次loop被覆盖了; 所以左上(上一轮i外循环)要单独保存
+
+def LCS2(text1, text2):
+	m = len(text1)
+	n = len(text2)
+	dp = [0] * (n+1)
+
+	for i in range(m):
+		leftup = dp[0]
+		print(dp)
+		for j in range(n):
+			temp = dp[j+1]
+			if text1[i] == text2[j]:
+				# 左上角
+				dp[j+1] = leftup + 1
+			else:
+				# max 左 and 上 -> 
+				dp[j+1] = max(dp[j+1], dp[j])
+			leftup = temp
+	print(dp)
+	return dp[n]
+
+	'''
+	[[0, 0, 0, 0], [0, 1, 1, 1], [0, 1, 1, 1], [0, 1, 2, 2], [0, 1, 2, 2], [0, 1, 2, 3]]
+	'''
+
+print(LCS2(text1 = "abcde", text2 = "ace" ))
+# print(LCS(text1 = "abc", text2 = "abc"))
+# print(LCS(text1 = "abc", text2 = "def"))
+
+# 72. 编辑距离
+def minDistance(word1, word2):
+	'''
+	给你两个单词 word1 和 word2， 请返回将 word1 转换成 word2 所使用的最少操作数。
+
+	你可以对一个单词进行如下三种操作：
+
+	插入一个字符
+	删除一个字符
+	替换一个字符
+	
+	'''
+	m = len(word1)
+	n = len(word2)
+	dp = [[0] * (n+1) for _ in range(m+1)]
+	for j in range(n+1):
+		dp[0][j] = j
+	for i in range(m):
+		dp[i+1][0] = i+1
+		for j in range(n):
+			if word1[i] == word2[j]:
+				dp[i+1][j+1] = dp[i][j]
+			else:
+				dp[i+1][j+1] = min(dp[i+1][j], dp[i][j+1], dp[i][j]) + 1
+	print(dp)
+	# return dp[m][n]
+
+
+	m = len(word1)
+	n = len(word2)
+	dp = [0] * (n+1)
+	for j in range(n+1):
+		dp[j] = j
+	for i in range(m):
+		leftup = dp[0]
+		dp[0] = i+1
+		for j in range(n):
+			temp = dp[j+1]
+			if word1[i] == word2[j]:
+				dp[j+1] = leftup
+			else:
+				dp[j+1] = min(dp[j], dp[j+1], leftup) + 1
+			leftup = temp
+	return dp[n]
+
+print(minDistance(word1 = "horse", word2 = "ros"))
+
+
+# 5. 最长回文子串
+def longestPalidram(s):
+	n = len(s)
+	maxLength = 0
+	if n % 2 == 1:
+		for i in range(n):
+			l, r = i, i
+			while l >= 0 and r <= n-1:
+				if s[l] != s[r]:
+					break
+				l -= 1
+				r += 1
+			maxLength = max(maxLength, r-l-1)
+
+	else:
+		for i in range(n-1):
+			l, r = i, i+1
+			while l >= 0 and r <= n-1:
+				if s[l] != s[r]:
+					break
+				l -= 1
+				r += 1
+			maxLength = max(maxLength, r-l-1)
+
+	return maxLength
+
+def longestPalidram2(s):
+	return 
+
+
+print(longestPalidram("babad"))
+print(longestPalidram("cbbd"))
+
+# 5. 最长回文子串 dp做法
+
+def NumPalidram(s):
+	# 有多少个回文子串
+	n = len(s)
+	count = 0
+	dp = [[False] * n for _ in range(n)] 
+	for i in range(n):
+		dp[i][i] = True
+	for i in range(n):
+		for j in range(i, n):
+			if j - i >= 2:
+				dp[i][j] = (s[i] == s[j]) and dp[i+1][j-1]
+
+			else:
+				dp[i][j] = (s[i] == s[j])
+			if dp[i][j]:
+				count += 1
+
+	print(dp)
+	return count
+
+print('# 5. 最长回文子串 dp做法')
+print(NumPalidram('babad'))
+print('# 5. 最长回文子串 dp做法')
+
+
+def longestPalidram2(s):
+	# 有多少个回文子串
+	n = len(s)
+	maxLength = 0
+	dp = [[False] * n for _ in range(n)] 
+	for i in range(n):
+		dp[i][i] = True
+	for i in range(n):
+		for j in range(i, n):
+			if j - i >= 2:
+				dp[i][j] = (s[i] == s[j]) and dp[i+1][j-1]
+
+			else:
+				dp[i][j] = (s[i] == s[j])
+			if dp[i][j]:
+				maxLength = max(maxLength, j-i+1)
+
+	return maxLength
+
+print(longestPalidram2("babad"))
+print(longestPalidram2("cbbd"))
+
+
+
+# 131. 分割回文串
+def splitPalidram(s):
+	result = []
+	path = []
+	n = len(s)
+	def dfs(i):
+		if i == n:
+			result.append(path.copy())
+			return 
+
+		for j in range(i, n):
+			t = s[i:j+1]
+			if t == t[::-1]:
+				path.append(t)
+				dfs(j+1)
+				path.pop(-1)
+	dfs(0)
+	return result
+
+print(splitPalidram(s = "aab"))
+print(splitPalidram(s = "a"))
+
+
+
+# 136. 只出现一次的数字
+def oneTimeNumber(nums):
+	# a ^ 0 = a
+	# a ^ a = 0
+	# a ^ b = b ^ a
+	result = nums[0]
+	for n in nums[1:]:
+		result = result ^ n
+	return result
+
+print(oneTimeNumber([1, 1, 2, 2, 3, 6, 6, 7, 7]))
+print(oneTimeNumber([1, 2, 1, 2, 6, 6, 0, 7, 7]))
+
+
+# 169. 多数元素
+def MostElement(nums):
+	most = nums[0]
+	count = 1
+
+	for x in nums[1:]:
+		if x == most:
+			count += 1
+		else:
+			count -= 1
+			if count == 0:
+				most = x
+				count = 1
+	return most
+
+print(MostElement([3,2,3]))
+print(MostElement([2,2,1,1,1,2,2]))
+
+
+# 75. 颜色分类
+def sortColors(nums):
+	n = len(nums)
+	zeroIndex = 0
+	for i in range(n):
+		if nums[i] == 0:
+			nums[zeroIndex], nums[i] = nums[i], nums[zeroIndex]
+			zeroIndex += 1
+
+	twoIndex = n-1
+	for j in range(n-1, -1, -1):
+		if nums[j] == 2:
+			nums[twoIndex], nums[j] = nums[j], nums[twoIndex]
+			twoIndex -= 1
+
+
+def sortColors2(nums):
+	zeroIndex = oneIndex = 0
+
+	for i, x in enumerate(nums):
+		nums[i] = 2
+		if x == 1:
+			nums[oneIndex] = 1
+			oneIndex += 1
+		if x == 0:
+			nums[oneIndex] = 1
+			oneIndex += 1
+			nums[zeroIndex] = 0
+			zeroIndex += 1
+
+
+nums = [2,0,2,1,1,0,0,1,0,0,1,2,0]
+print(nums)
+sortColors2(nums)
+print(nums)
+
+
+# 下一个排列
+def nextList(nums):
+	# [1, 2, 3] -> [1, 3, 2] -> [2, 1, 3] -> [2, 3, 1] -> [1, 2, 3]
+	candi = -1
+	n = len(nums)
+	for i in range(n-2, -1, -1):
+		if nums[i] < nums[i+1]:
+			candi = i
+			break
+	print(candi)
+	
+	for i in range(n-1, candi, -1):
+		if nums[i] > nums[candi]:
+			nums[i], nums[candi] = nums[candi], nums[i]
+			break
+	
+	l, r = candi+1, n-1
+	while l < r:
+		nums[l], nums[r] = nums[r], nums[l]
+		l += 1
+		r -= 1
+
+print(' 下一个排列')
+nums = [1, 2, 3]
+print(nums)
+nextList(nums)
+print(nums)
+nextList(nums)
+print(nums)
+nextList(nums)
+print(nums)
+print(' 下一个排列')
+
+
+
+def findUnUniqueNumber(nums):
+	# 想象成一个从0开始的环
+	fast = slow = 0
+	while True:
+		fast = nums[nums[fast]]
+		slow = nums[slow]
+		if slow == fast:
+			head = 0
+			while slow != head:
+				slow = nums[slow]
+				head = nums[head]
+			break
+	return slow
+
+
+print(findUnUniqueNumber(nums = [1,3,4,2,2]))
+
+print(findUnUniqueNumber(nums = [3,1,3,4,2]))
+
+print(findUnUniqueNumber(nums = [3,3,3,3,3]))
 
 
 

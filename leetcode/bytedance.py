@@ -138,6 +138,7 @@ print(c)
         
 
 
+
 def cube(x):
     x0 = 1.0
     eposilon = 1e-5
@@ -179,3 +180,25 @@ re2 = findMaxSubSeq('cbbd')
 print(re)
 print(re2)
 
+
+
+def cube(M):
+    x = 0.1
+    eposilon = 1e-10
+    alpha = 0.0001
+    while (x**3 - M)**2 > eposilon:
+        x = x - alpha*(2*(x**3 - M)*(3*x**2))    
+    return x
+print(cube(27))
+
+
+
+
+
+def cube(M):
+    x = 0.1
+    eposilon = 1e-10
+    while (x**3 - M)**2 > eposilon:
+        x = x - ((x**3 - M) / (3*x**2))
+    return x
+print(cube(27))
