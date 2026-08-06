@@ -2424,6 +2424,7 @@ print('biggestKItem : 第K大的数')
 print(biggestKItem([3,2,1,5,6,4], k = 2))
 print(biggestKItem([3,2,3,1,2,4,5,5,6], k = 4))
 
+
 import collections
 def topKElement(nums, k):
 	counts = collections.defaultdict(int)
@@ -2436,8 +2437,6 @@ def topKElement(nums, k):
 	for item, count in counts.items():
 		reverse[count].append(item)
 	maxCount = max(reverse.keys())
-	print(reverse)
-	print(maxCount)
 
 	index = maxCount
 	while index > 0 and k > 0:
@@ -2452,6 +2451,28 @@ print(topKElement(nums = [1,2,1,2,1,2,3,1,3,2], k=2))
 
 print(topKElement(nums = [1,1,1,2,2,3], k = 2))
 print(topKElement(nums = [1], k = 1))
+
+
+import heapq
+import collections
+def topKElement2(nums, k):
+	counts = collections.defaultdict(int)
+	result = []
+	for x in nums:
+		counts[x] += 1
+	minHeap = []
+	for i in counts.keys():
+		heapq.heappush(minHeap, (-counts[i], i))
+	for i in range(k):
+		result.append(heapq.heappop(minHeap)[1])
+	return result
+
+
+print('topKElement2')
+print(topKElement2(nums = [1,2,1,2,1,2,3,1,3,2], k=2))
+print(topKElement2(nums = [1,1,1,2,2,3], k = 2))
+print(topKElement2(nums = [1], k = 1))
+print('topKElement2')
 
 
 
@@ -3084,22 +3105,27 @@ print('# 5. 最长回文子串 dp做法')
 
 def longestPalidram2(s):
 	# 有多少个回文子串
-	n = len(s)
-	maxLength = 0
-	dp = [[False] * n for _ in range(n)] 
-	for i in range(n):
-		dp[i][i] = True
-	for i in range(n):
-		for j in range(i, n):
-			if j - i >= 2:
-				dp[i][j] = (s[i] == s[j]) and dp[i+1][j-1]
+    n = len(s)
+    maxLength = 0
+    maxLeft = 0
+    maxRight = 0
+    dp = [[False] * n for _ in range(n)] 
+    for i in range(n):
+        dp[i][i] = True
+    for j in range(n):
+        for i in range(0, j+1):
+            if j - i >= 2:
+                dp[i][j] = (s[i] == s[j]) and dp[i+1][j-1]
+            else:
+                dp[i][j] = (s[i] == s[j])
+            if dp[i][j]:
+                if j-i+1 > maxLength:
+                    maxLeft = i
+                    maxRight = j
+                    maxLength = j-i+1
+    return s[maxLeft:maxRight+1]
 
-			else:
-				dp[i][j] = (s[i] == s[j])
-			if dp[i][j]:
-				maxLength = max(maxLength, j-i+1)
-
-	return maxLength
+print(longestPalidram2("aaaa"))
 
 print(longestPalidram2("babad"))
 print(longestPalidram2("cbbd"))
@@ -3255,6 +3281,66 @@ print(findUnUniqueNumber(nums = [1,3,4,2,2]))
 print(findUnUniqueNumber(nums = [3,1,3,4,2]))
 
 print(findUnUniqueNumber(nums = [3,3,3,3,3]))
+
+
+
+
+# 295. 数据流的中位数
+import heapq
+class MedianFinder:
+
+    def __init__(self):
+        self.maxHeap = []
+        self.minHeap = []
+       
+    def addNum(self, num: int) -> None:
+    	if len(self.maxHeap) == len(self.minHeap):
+    		heapq.heappush(self.minHeap, num)
+    		heapq.heappush(self.maxHeap, -heapq.heappop(self.minHeap))
+    	else:
+    		heapq.heappush(self.maxHeap, -num)
+    		heapq.heappush(self.minHeap, -heapq.heappop(self.maxHeap))
+
+    def findMedian(self) -> float:
+    	if len(self.maxHeap) == len(self.minHeap):
+    		return (self.minHeap[0] - self.maxHeap[0]) / 2
+    	else:
+    		return -self.maxHeap[0]
+
+
+medianFinder = MedianFinder()
+medianFinder.addNum(1)
+medianFinder.addNum(2)
+print(medianFinder.maxHeap, medianFinder.minHeap)
+print(medianFinder.findMedian())
+medianFinder.addNum(3)
+print(medianFinder.findMedian())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 和为0的最长子数组:
+
+
+
+
+
+
+
+		
+
 
 
 
