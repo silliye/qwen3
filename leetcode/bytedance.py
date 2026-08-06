@@ -166,10 +166,8 @@ def findMaxSubSeq(s):
                     dp[i][j] = True
                 else:
                     dp[i][j] = dp[i+1][j-1]
-            
-                
             if dp[i][j] and j-i > max_length:
-                max_length = dp[i][j]
+                max_length = j-i
                 res_left = i
                 res_right = j
     return s[res_left:res_right+1]
@@ -180,25 +178,3 @@ re2 = findMaxSubSeq('cbbd')
 print(re)
 print(re2)
 
-
-
-def cube(M):
-    x = 0.1
-    eposilon = 1e-10
-    alpha = 0.0001
-    while (x**3 - M)**2 > eposilon:
-        x = x - alpha*(2*(x**3 - M)*(3*x**2))    
-    return x
-print(cube(27))
-
-
-
-
-
-def cube(M):
-    x = 0.1
-    eposilon = 1e-10
-    while (x**3 - M)**2 > eposilon:
-        x = x - ((x**3 - M) / (3*x**2))
-    return x
-print(cube(27))
