@@ -4,8 +4,6 @@ def std_max(nums):
     return
 
 
-
-
 # 扔骰子问题:
 
 
