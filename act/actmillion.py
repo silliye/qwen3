@@ -85,6 +85,7 @@ class ACTMillionBlock(nn.Module):
                                       bf16 = True,
                                       mask = 'BlockDiagalMask')
         attn_output = attn_output + query_input
+
         ffn_input = self.ffn_rmsnorm(attn_output)
 
         ffn_output = self.ffn(ffn_input) + attn_output
