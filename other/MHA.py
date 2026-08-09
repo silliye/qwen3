@@ -29,14 +29,14 @@ class MultiHeadAttention(nn.Module):
         
         return (pad_mask * casual_mask)
     
-    def gen_full_mask(self, mask:Tensor):
-        # mask [B, seq] [1, 1, 1, 0]
-
-        # [B, 1, 1, seq]
-        pad_mask = mask.unsqueeze(1).unsqueeze(1)
-
-        # [B, 1, 1, seq]
-        return pad_mask
+    def gen_full_mask(self, mask:Tensor): 
+        # mask [B, seq] [1, 1, 1, 0] 
+ 
+        # [B, 1, 1, seq] 
+        pad_mask = mask.unsqueeze(1).unsqueeze(1) 
+ 
+        # [B, 1, 1, seq] 
+        return pad_mask 
     
     def forward(self, X:Tensor, mask):
         # X [batchsize, seq_len, emb_dim]
@@ -49,7 +49,6 @@ class MultiHeadAttention(nn.Module):
         Q:Tensor
         K:Tensor
         V:Tensor
-
         
         attention_scores = torch.matmul(Q, K.transpose(-1, -2)) / math.sqrt(self.dim)
 
